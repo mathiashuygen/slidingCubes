@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isConnected, matchesTarget, replay, rules2D } from "@/engine";
-import { generateLevel2D, growShape, seededRandom } from "./generator";
+import { initGame } from "./gameState";
+import { generateLevel2D, generateLevel3D, growShape, seededRandom } from "./generator";
 import { toConfiguration } from "./levels";
 
 describe("random level generator", () => {
@@ -40,5 +41,36 @@ describe("random level generator", () => {
 
 	it("rejects levels that are too small", () => {
 		expect(() => generateLevel2D({ size: 2, scrambleMoves: 5, seed: 0 })).toThrow();
+		expect(() => generateLevel3D({ size: 2, seed: 0 })).toThrow();
+	});
+});
+
+describe("random 3D level generator", () => {
+	it("grows shapes that use all three dimensions", () => {
+		const shape = growShape(30, seededRandom(5), 3);
+		expect(shape.size).toBe(30);
+		expect(isConnected(shape)).toBe(true);
+		expect(shape.toArray().some((c) => c[2] !== 0)).toBe(true);
+	});
+
+	for (const size of [3, 4, 5, 6]) {
+		it(`produces compactable levels with ${size} cubes and a shortest solution`, () => {
+			for (let seed = 0; seed < 5; seed++) {
+				const level = generateLevel3D({ size, seed });
+				const state = initGame(level);
+				expect(state.start.size).toBe(size);
+				expect(state.box!.min).toEqual([0, 0, 0]);
+				expect(isConnected(state.start)).toBe(true);
+				expect(state.goal.isReached(state.start)).toBe(false);
+				expect(level.optimal).toBe(true);
+				expect(replay(state.start, level.solution!, state.rules, state.goal).ok).toBe(true);
+			}
+		});
+	}
+
+	it("leaves larger levels without a reference until the 3D solver exists", () => {
+		const level = generateLevel3D({ size: 12, seed: 1 });
+		expect(level.solution).toBeUndefined();
+		expect(generateLevel3D({ size: 12, seed: 1 })).toEqual(level);
 	});
 });

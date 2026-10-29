@@ -1,5 +1,5 @@
 import { type Cell, add, unit } from "./cell";
-import type { Configuration } from "./configuration";
+import type { Box, Configuration } from "./configuration";
 
 export interface Goal {
 	description: string;
@@ -22,6 +22,23 @@ export function downwardClosed(origin: Cell): Goal {
 				}
 			}
 			return true;
+		},
+	};
+}
+
+/**
+ * The 3D game's goal: downward-closed from the box's minimum corner, with
+ * every cube back inside the box. Stepping outside is only allowed on the way.
+ */
+export function compactedInBox(box: Box): Goal {
+	const closed = downwardClosed(box.min);
+	return {
+		description: "Compact the cubes into the corner of the box.",
+		isReached(config) {
+			for (const c of config) {
+				if ([0, 1, 2].some((i) => c[i] > box.max[i])) return false;
+			}
+			return closed.isReached(config);
 		},
 	};
 }

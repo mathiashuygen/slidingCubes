@@ -1,6 +1,19 @@
-import { type Cell, type Move, Configuration, applyMove, inverse, legalMoves, matchesTarget, replay, rules2D } from "@/engine";
+import {
+	type Move,
+	Configuration,
+	applyMove,
+	compactedInBox,
+	faceNeighbors,
+	inverse,
+	legalMoves,
+	matchesTarget,
+	replay,
+	rules2D,
+	rules3D,
+	sub,
+} from "@/engine";
 import { shortestSolution } from "@/solvers/bfs";
-import type { Level2D } from "./levels";
+import type { Level2D, Level3D } from "./levels";
 
 /** Small seeded PRNG (mulberry32), so a seed always gives the same level. */
 export function seededRandom(seed: number): () => number {
@@ -17,15 +30,12 @@ function pick<T>(items: readonly T[], rand: () => number): T {
 	return items[Math.floor(rand() * items.length)];
 }
 
-const SIDES: Cell[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
-
-/** Grows a connected shape from one square by repeatedly adding a free neighbour of a random square. */
-export function growShape(size: number, rand: () => number): Configuration {
+/** Grows a connected shape from one module by repeatedly adding a free neighbour of a random module. */
+export function growShape(size: number, rand: () => number, dims: 2 | 3 = 2): Configuration {
 	const shape = new Configuration([[0, 0, 0]]);
 	while (shape.size < size) {
-		const c = pick(shape.toArray(), rand);
-		const d = pick(SIDES, rand);
-		shape.add([c[0] + d[0], c[1] + d[1], 0]);
+		const neighbors = faceNeighbors(pick(shape.toArray(), rand)).filter((n) => dims === 3 || n[2] === 0);
+		shape.add(pick(neighbors, rand));
 	}
 	return shape;
 }
@@ -38,8 +48,12 @@ export interface GeneratorOptions {
 	seed: number;
 }
 
-/** Levels up to this size also get a BFS-shortest reference solution. */
+/** 2D levels up to this size also get a BFS-shortest reference solution. */
 const MAX_BFS_SIZE = 7;
+
+function checkSeed(seed: number) {
+	if (!Number.isInteger(seed)) throw new Error("The seed must be a whole number.");
+}
 
 /** How often the scramble prefers moves that take it furthest from the target. */
 const GREEDY_BIAS = 0.7;
@@ -54,7 +68,7 @@ const GREEDY_BIAS = 0.7;
 export function generateLevel2D({ size, scrambleMoves, seed }: GeneratorOptions): Level2D {
 	if (!Number.isInteger(size) || size < 3) throw new Error("A level needs a whole number of at least 3 squares.");
 	if (!Number.isInteger(scrambleMoves) || scrambleMoves < 1) throw new Error("Scramble needs a whole number of at least 1 move.");
-	if (!Number.isInteger(seed)) throw new Error("The seed must be a whole number.");
+	checkSeed(seed);
 	const rand = seededRandom(seed);
 	const target = growShape(size, rand);
 
@@ -90,6 +104,7 @@ export function generateLevel2D({ size, scrambleMoves, seed }: GeneratorOptions)
 
 	const to2D = (c: Configuration) => c.toArray().map((cell): [number, number] => [cell[0], cell[1]]);
 	return {
+		mode: "2d",
 		id: `random-${size}-${scrambleMoves}-${seed}`,
 		name: `Random #${seed}`,
 		description: `${size} random squares, scrambled with ${walk.length} moves. ${
@@ -99,5 +114,47 @@ export function generateLevel2D({ size, scrambleMoves, seed }: GeneratorOptions)
 		target: to2D(target),
 		solution,
 		optimal: shortest !== null,
+	};
+}
+
+/** 3D levels up to this size get a BFS-shortest reference solution; larger ones need the 3D solver. */
+const MAX_BFS_SIZE_3D = 6;
+
+/**
+ * Random 3D level: a random connected shape that is not yet downward-closed
+ * in its own bounding box. Unlike 2D there is no fixed target to scramble
+ * from, so the reference solution comes from BFS, for small levels only.
+ */
+export function generateLevel3D({ size, seed }: { size: number; seed: number }): Level3D {
+	if (!Number.isInteger(size) || size < 3) throw new Error("A level needs a whole number of at least 3 cubes.");
+	checkSeed(seed);
+	const rand = seededRandom(seed);
+
+	let start = growShape(size, rand, 3);
+	for (let attempt = 0; compactedInBox(start.boundingBox()).isReached(start); attempt++) {
+		if (attempt === 100) throw new Error("Could not grow a shape that still needs compacting.");
+		start = growShape(size, rand, 3);
+	}
+
+	// Put the box's minimum corner, the origin for compaction, at (0, 0, 0).
+	const { min } = start.boundingBox();
+	start = new Configuration(start.toArray().map((c) => sub(c, min)));
+	const box = start.boundingBox();
+	const goal = compactedInBox(box);
+	const solution = size <= MAX_BFS_SIZE_3D ? shortestSolution(start, goal, rules3D(box), 30_000) : null;
+	if (solution) {
+		const check = replay(start, solution, rules3D(box), goal);
+		if (!check.ok) throw new Error(`Generated level failed verification: ${check.failure?.message}`);
+	}
+
+	return {
+		mode: "3d",
+		id: `random3d-${size}-${seed}`,
+		name: `Random 3D #${seed}`,
+		description: `${size} random cubes. ${
+			solution ? `The shortest compaction takes ${solution.length} moves.` : "No reference solution yet: that needs the 3D solver."
+		}`,
+		start: start.toArray().map((c): [number, number, number] => [c[0], c[1], c[2]]),
+		...(solution && { solution, optimal: true }),
 	};
 }

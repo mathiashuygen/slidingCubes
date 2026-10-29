@@ -106,8 +106,8 @@ export function checkMove(config: Configuration, move: Move, rules: Rules, optio
 	return geometry;
 }
 
-/** Every cell a module could reach in one move, before legality checks. */
-function candidateDestinations(from: Cell, rules: Rules): Cell[] {
+/** Every cell a module could reach in one move (a slide or a convex transition), before legality checks. */
+export function localDestinations(from: Cell, rules: Rules): Cell[] {
 	const directions = unitVectors(rules.axes);
 	const result = new Map<string, Cell>();
 	for (const d of directions) {
@@ -129,7 +129,7 @@ export interface CheckedMove extends Move {
 /** Legal moves of the module at `from`, e.g. to highlight its destinations. */
 export function legalMovesFrom(config: Configuration, from: Cell, rules: Rules, options: CheckOptions = {}): CheckedMove[] {
 	const result: CheckedMove[] = [];
-	for (const to of candidateDestinations(from, rules)) {
+	for (const to of localDestinations(from, rules)) {
 		const check = checkMove(config, { from, to }, rules, options);
 		if (check.legal) result.push({ from, to, check });
 	}

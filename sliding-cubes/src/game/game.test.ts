@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type Cell, isConnected, matchesTarget, replay, rules2D } from "@/engine";
 import { shortestSolution } from "@/solvers/bfs";
 import { formatMoves, gameReducer, initGame, parseMoves } from "./gameState";
-import { levels2D, toConfiguration } from "./levels";
+import { levels2D, levels3D, toConfiguration } from "./levels";
 
 const at = (x: number, y: number): Cell => [x, y, 0];
 
@@ -20,6 +20,28 @@ describe("2D levels", () => {
 			expect(replay(start, solution!, rules2D, matchesTarget(target)).ok).toBe(true);
 		});
 	}
+});
+
+describe("3D levels", () => {
+	for (const level of levels3D) {
+		it(`${level.name} is valid and solvable`, () => {
+			const state = initGame(level);
+			expect(isConnected(state.start)).toBe(true);
+			expect(state.rules.space.checkStart(state.start)).toBeNull();
+			expect(state.goal.isReached(state.start)).toBe(false);
+
+			const solution = shortestSolution(state.start, state.goal, state.rules);
+			expect(solution).not.toBeNull();
+			expect(replay(state.start, solution!, state.rules, state.goal).ok).toBe(true);
+		});
+	}
+
+	it("compacts with a click and reports it", () => {
+		let state = initGame(levels3D[0]);
+		state = gameReducer(state, { type: "click", cell: [1, 0, 1] });
+		state = gameReducer(state, { type: "click", cell: [0, 0, 1] });
+		expect(state.feedback).toMatchObject({ tone: "success", message: "Compacted in 1 move." });
+	});
 });
 
 describe("game reducer", () => {
@@ -83,7 +105,9 @@ describe("game reducer", () => {
 describe("move list format", () => {
 	it("round-trips through JSON", () => {
 		const moves = [{ from: at(1, 1), to: at(0, 1) }, { from: at(0, 1), to: at(-1, 0) }];
-		expect(parseMoves(formatMoves(moves))).toEqual(moves);
+		expect(parseMoves(formatMoves(moves, "2d"))).toEqual(moves);
+		const moves3D = [{ from: [0, 0, 1] as Cell, to: [1, 0, 0] as Cell }];
+		expect(parseMoves(formatMoves(moves3D, "3d"))).toEqual(moves3D);
 	});
 
 	it("rejects malformed cells", () => {

@@ -1,5 +1,5 @@
-import { Playground2D } from "@/components/Playground2D";
+import { Playground } from "@/components/Playground";
 
 export default function Home() {
-	return <Playground2D />;
+	return <Playground />;
 }

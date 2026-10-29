@@ -6,6 +6,7 @@ import {
 	applyMove,
 	articulationPoints,
 	cellKey,
+	compactedInBox,
 	checkMove,
 	downwardClosed,
 	inPlaceViolation,
@@ -163,6 +164,14 @@ describe("downward-closed goal", () => {
 
 	it("rejects a floating cube", () => {
 		expect(goal.isReached(new Configuration([[0, 0, 0], [1, 0, 0], [1, 0, 1]]))).toBe(false);
+	});
+
+	it("in the 3D game, also requires every cube back inside the box", () => {
+		const inBox = compactedInBox({ min: [0, 0, 0], max: [1, 0, 1] });
+		const shape: Cell[] = [[0, 0, 0], [1, 0, 0], [0, 0, 1]];
+		expect(inBox.isReached(new Configuration(shape))).toBe(true);
+		// Downward-closed, but one cube is still in the exterior cell at x = 2.
+		expect(inBox.isReached(new Configuration([...shape, [2, 0, 0]]))).toBe(false);
 	});
 });
 

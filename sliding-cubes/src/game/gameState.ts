@@ -1,17 +1,23 @@
 import {
+	type Box,
 	type Cell,
 	type Configuration,
+	type Goal,
 	type Move,
+	type Rules,
 	applyMove,
 	checkMove,
+	compactedInBox,
 	equals,
 	inverse,
 	isConnected,
 	legalMovesFrom,
+	matchesTarget,
 	replay,
 	rules2D,
+	rules3D,
 } from "@/engine";
-import { type Level2D, toConfiguration } from "./levels";
+import { type Level, toConfiguration } from "./levels";
 
 export interface Feedback {
 	tone: "error" | "info" | "success";
@@ -21,13 +27,18 @@ export interface Feedback {
 }
 
 /**
- * The 2D game as a move list with a cursor. Undo/redo and stepping through a
+ * The game as a move list with a cursor. Undo/redo and stepping through a
  * loaded solution are the same operation: moving the cursor.
  */
 export interface GameState {
-	level: Level2D;
+	level: Level;
+	rules: Rules;
+	goal: Goal;
 	start: Configuration;
-	target: Configuration;
+	/** The shape to match (2D only). */
+	target: Configuration | null;
+	/** The box cubes must stay in (3D only). */
+	box: Box | null;
 	/** The configuration after `moves[0..cursor)`. */
 	config: Configuration;
 	moves: Move[];
@@ -45,22 +56,24 @@ export type GameAction =
 	| { type: "redo" }
 	| { type: "seek"; cursor: number }
 	| { type: "restart" }
-	| { type: "load-level"; level: Level2D }
+	| { type: "load-level"; level: Level }
 	| { type: "load-moves"; moves: Move[] };
 
-export function initGame(level: Level2D): GameState {
+export function initGame(level: Level): GameState {
 	const start = toConfiguration(level.start);
-	return {
-		level,
-		start,
-		target: toConfiguration(level.target),
-		config: start.clone(),
-		moves: [],
-		cursor: 0,
-		selected: null,
-		feedback: null,
-		lastStep: null,
-	};
+	const common = { level, start, config: start.clone(), moves: [], cursor: 0, selected: null, feedback: null, lastStep: null };
+	if (level.mode === "2d") {
+		const target = toConfiguration(level.target);
+		return { ...common, rules: rules2D, goal: matchesTarget(target), target, box: null };
+	}
+	// Peters et al.: the box is the start's bounding box, and its minimum corner is the origin.
+	const box = start.boundingBox();
+	return { ...common, rules: rules3D(box), goal: compactedInBox(box), target: null, box };
+}
+
+/** "square" in 2D, "cube" in 3D. */
+export function moduleNoun(state: GameState): string {
+	return state.level.mode === "2d" ? "square" : "cube";
 }
 
 function stepTo(state: GameState, cursor: number): GameState {
@@ -81,23 +94,24 @@ function stepTo(state: GameState, cursor: number): GameState {
 }
 
 function goalFeedback(state: GameState, config: Configuration, cursor: number): Feedback | null {
-	if (!config.equals(state.target)) return null;
-	let message = `Target reached in ${cursor} move${cursor === 1 ? "" : "s"}.`;
+	if (!state.goal.isReached(config)) return null;
+	const what = state.level.mode === "2d" ? "Target reached" : "Compacted";
+	let message = `${what} in ${cursor} move${cursor === 1 ? "" : "s"}.`;
 	const reference = state.level.solution?.length;
 	if (reference !== undefined) message += ` ${state.level.optimal ? "Shortest possible" : "Reference solution"}: ${reference}.`;
 	return { tone: "success", message, cells: [] };
 }
 
 function click(state: GameState, cell: Cell): GameState {
-	const { config, selected } = state;
+	const { config, selected, rules } = state;
 
 	if (config.has(cell)) {
 		if (selected && equals(selected, cell)) return { ...state, selected: null, feedback: null };
 		let feedback: Feedback | null = null;
-		if (legalMovesFrom(config, cell, rules2D).length === 0) {
+		if (legalMovesFrom(config, cell, rules).length === 0) {
 			feedback = isConnected(config, cell)
-				? { tone: "info", message: "This square has no legal move right now.", cells: [cell] }
-				: { tone: "info", message: "This square holds the others together, so it cannot move.", cells: [cell] };
+				? { tone: "info", message: `This ${moduleNoun(state)} has no legal move right now.`, cells: [cell] }
+				: { tone: "info", message: `This ${moduleNoun(state)} holds the others together, so it cannot move.`, cells: [cell] };
 		}
 		return { ...state, selected: cell, feedback };
 	}
@@ -105,7 +119,7 @@ function click(state: GameState, cell: Cell): GameState {
 	if (!selected) return { ...state, feedback: null };
 
 	const move = { from: selected, to: cell };
-	const check = checkMove(config, move, rules2D);
+	const check = checkMove(config, move, rules);
 	if (!check.legal) {
 		return { ...state, feedback: { tone: "error", message: check.message, cells: check.cells } };
 	}
@@ -131,7 +145,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 			return initGame(action.level);
 		case "load-moves": {
 			// Keep the legal prefix, so the viewer can step up to the first bad move.
-			const result = replay(state.start, action.moves, rules2D);
+			const result = replay(state.start, action.moves, state.rules);
 			const failure = result.failure?.kind === "illegal-move" ? result.failure : null;
 			const moves = failure ? action.moves.slice(0, failure.index) : action.moves;
 			const loaded = { ...initGame(state.level), moves };
@@ -149,7 +163,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 	}
 }
 
-/** Parses a JSON move list. Cells may be [x, y] or [x, y, z]. */
+/** Parses a JSON move list. Cells may be [x, y] (z = 0) or [x, y, z]. */
 export function parseMoves(text: string): Move[] {
 	const data: unknown = JSON.parse(text);
 	if (!Array.isArray(data)) throw new Error("Expected a JSON array of moves.");
@@ -162,8 +176,9 @@ export function parseMoves(text: string): Move[] {
 	return data.map((m, i) => ({ from: cell(m?.from, `Move ${i + 1} "from"`), to: cell(m?.to, `Move ${i + 1} "to"`) }));
 }
 
-/** One move per line, with 2D cells as [x, y]. */
-export function formatMoves(moves: Move[]): string {
-	const lines = moves.map((m) => `  {"from": [${m.from[0]}, ${m.from[1]}], "to": [${m.to[0]}, ${m.to[1]}]}`);
+/** One move per line. 2D cells are written as [x, y], 3D cells as [x, y, z]. */
+export function formatMoves(moves: Move[], mode: Level["mode"]): string {
+	const cell = (c: Cell) => (mode === "2d" ? `[${c[0]}, ${c[1]}]` : `[${c[0]}, ${c[1]}, ${c[2]}]`);
+	const lines = moves.map((m) => `  {"from": ${cell(m.from)}, "to": ${cell(m.to)}}`);
 	return `[\n${lines.join(",\n")}\n]`;
 }
