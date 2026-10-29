@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-	/* config options here */
-	cacheComponents: true,
+	// A static site: the game runs entirely in the browser, with no backend.
+	// (Cache Components / partial prefetching rely on a server and cannot be
+	// combined with a static export.)
 	output: "export",
-	partialPrefetching: true,
 	turbopack: {
 		rules: {
 			"*.css": {

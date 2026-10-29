@@ -42,6 +42,11 @@ export class Configuration implements Iterable<Cell> {
 		return [...this.cells.values()];
 	}
 
+	/** Canonical string for the whole configuration, e.g. to mark visited states. */
+	key(): string {
+		return [...this.cells.keys()].sort().join("|");
+	}
+
 	equals(other: Configuration): boolean {
 		if (other.size !== this.size) return false;
 		for (const c of this) if (!other.has(c)) return false;
