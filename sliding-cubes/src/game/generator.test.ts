@@ -68,9 +68,11 @@ describe("random 3D level generator", () => {
 		});
 	}
 
-	it("leaves larger levels without a reference until the 3D solver exists", () => {
+	it("gives larger levels a reference solution from the paper's solver", () => {
 		const level = generateLevel3D({ size: 12, seed: 1 });
-		expect(level.solution).toBeUndefined();
+		const state = initGame(level);
+		expect(level.optimal).toBe(false);
+		expect(replay(state.start, level.solution!, state.rules, state.goal).ok).toBe(true);
 		expect(generateLevel3D({ size: 12, seed: 1 })).toEqual(level);
 	});
 });

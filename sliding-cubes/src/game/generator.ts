@@ -13,6 +13,7 @@ import {
 	sub,
 } from "@/engine";
 import { shortestSolution } from "@/solvers/bfs";
+import { compact3D } from "@/solvers/peters";
 import type { Level2D, Level3D } from "./levels";
 
 /** Small seeded PRNG (mulberry32), so a seed always gives the same level. */
@@ -117,13 +118,14 @@ export function generateLevel2D({ size, scrambleMoves, seed }: GeneratorOptions)
 	};
 }
 
-/** 3D levels up to this size get a BFS-shortest reference solution; larger ones need the 3D solver. */
+/** 3D levels up to this size get a BFS-shortest reference solution; larger ones the paper solver's. */
 const MAX_BFS_SIZE_3D = 6;
 
 /**
  * Random 3D level: a random connected shape that is not yet downward-closed
  * in its own bounding box. Unlike 2D there is no fixed target to scramble
- * from, so the reference solution comes from BFS, for small levels only.
+ * from, so the reference solution comes from BFS for small levels and from
+ * the paper's solver otherwise.
  */
 export function generateLevel3D({ size, seed }: { size: number; seed: number }): Level3D {
 	if (!Number.isInteger(size) || size < 3) throw new Error("A level needs a whole number of at least 3 cubes.");
@@ -141,20 +143,20 @@ export function generateLevel3D({ size, seed }: { size: number; seed: number }):
 	start = new Configuration(start.toArray().map((c) => sub(c, min)));
 	const box = start.boundingBox();
 	const goal = compactedInBox(box);
-	const solution = size <= MAX_BFS_SIZE_3D ? shortestSolution(start, goal, rules3D(box), 30_000) : null;
-	if (solution) {
-		const check = replay(start, solution, rules3D(box), goal);
-		if (!check.ok) throw new Error(`Generated level failed verification: ${check.failure?.message}`);
-	}
+	const shortest = size <= MAX_BFS_SIZE_3D ? shortestSolution(start, goal, rules3D(box), 30_000) : null;
+	const solution = shortest ?? compact3D(start).moves;
+	const check = replay(start, solution, rules3D(box), goal);
+	if (!check.ok) throw new Error(`Generated level failed verification: ${check.failure?.message}`);
 
 	return {
 		mode: "3d",
 		id: `random3d-${size}-${seed}`,
 		name: `Random 3D #${seed}`,
 		description: `${size} random cubes. ${
-			solution ? `The shortest compaction takes ${solution.length} moves.` : "No reference solution yet: that needs the 3D solver."
+			shortest ? `The shortest compaction takes ${solution.length} moves.` : `The paper's solver compacts it in ${solution.length} moves.`
 		}`,
 		start: start.toArray().map((c): [number, number, number] => [c[0], c[1], c[2]]),
-		...(solution && { solution, optimal: true }),
+		solution,
+		optimal: shortest !== null,
 	};
 }

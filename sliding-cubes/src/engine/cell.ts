@@ -12,6 +12,12 @@ export function cellKey(c: Cell): string {
 	return `${c[0]},${c[1]},${c[2]}`;
 }
 
+/** Inverse of cellKey. */
+export function parseCellKey(key: string): Cell {
+	const [x, y, z] = key.split(",").map(Number);
+	return [x, y, z];
+}
+
 export function add(a: Cell, b: Cell): Cell {
 	return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }

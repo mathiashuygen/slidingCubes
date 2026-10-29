@@ -1,13 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { type Cell, checkMove, legalMovesFrom, localDestinations } from "@/engine";
 import { type Feedback, formatMoves, gameReducer, initGame, moduleNoun, parseMoves } from "@/game/gameState";
 import { generateLevel2D, generateLevel3D } from "@/game/generator";
 import { type Level, levels2D, levels3D } from "@/game/levels";
+import type { Move } from "@/engine";
+import type { Phase } from "@/solvers";
 import { shortestSolution } from "@/solvers/bfs";
 import { Board2D } from "./Board2D";
+import { useSolver } from "./useSolver";
 
 // Three.js needs the browser, so the 3D board is never prerendered.
 const Board3D = dynamic(() => import("./Board3D"), {
@@ -28,14 +31,31 @@ const feedbackStyle: Record<Feedback["tone"], string> = {
 
 const levelsByMode = { "2d": levels2D, "3d": levels3D } as const;
 
+/** Up to this many modules, brute-force search finds a shortest solution quickly. */
+const BFS_LIMIT = { "2d": 7, "3d": 6 } as const;
+
+const SOLVER_NAMES = { "2d": "Dumitrescu–Pach", "3d": "Peters et al." } as const;
+
+type SolverRun =
+	| { status: "idle" }
+	| { status: "running" }
+	| { status: "done"; moves: Move[]; phases: Phase[]; ms: number }
+	| { status: "error"; message: string };
+
 /** Debug viewer for both modes: play by clicking, or load a move list and step through it. */
 export function Playground() {
 	const [state, dispatch] = useReducer(gameReducer, levels2D[0], initGame);
 	const [movesText, setMovesText] = useState("");
 	const [textError, setTextError] = useState<string | null>(null);
 	const [playing, setPlaying] = useState(false);
+	const [solverRun, setSolverRun] = useState<SolverRun>({ status: "idle" });
+	const { solve, cancel } = useSolver();
 
 	const { config, moves, cursor, selected, rules, level } = state;
+	const stateRef = useRef(state);
+	useEffect(() => {
+		stateRef.current = state;
+	});
 	const mode = level.mode;
 	const noun = moduleNoun(state);
 	const isPlaying = playing && cursor < moves.length;
@@ -72,6 +92,8 @@ export function Playground() {
 	}, []);
 
 	function loadLevel(next: Level) {
+		cancel();
+		setSolverRun({ status: "idle" });
 		dispatch({ type: "load-level", level: next });
 		setMovesText("");
 		setTextError(null);
@@ -88,16 +110,33 @@ export function Playground() {
 		setPlaying(false);
 	}
 
-	function showSolution() {
-		const solution = level.solution ?? shortestSolution(state.start, state.goal, rules);
-		if (!solution) {
-			setTextError("BFS found no solution within its state limit.");
+	function loadSolution(moves: Move[]) {
+		setMovesText(formatMoves(moves, mode));
+		setTextError(null);
+		dispatch({ type: "load-moves", moves });
+		setPlaying(false);
+	}
+
+	async function runPaperSolver() {
+		const forLevel = level;
+		setSolverRun({ status: "running" });
+		const response = await solve(forLevel);
+		// Ignore results for a level the player has since left.
+		if (forLevel !== stateRef.current.level) return;
+		if (!response.ok) {
+			setSolverRun({ status: "error", message: response.error });
 			return;
 		}
-		setMovesText(formatMoves(solution, mode));
-		setTextError(null);
-		dispatch({ type: "load-moves", moves: solution });
-		setPlaying(false);
+		setSolverRun({ status: "done", moves: response.output.moves, phases: response.output.phases, ms: response.ms });
+		loadSolution(response.output.moves);
+	}
+
+	/** The level's stored solution, a shortest one for small levels, or else the paper solver's. */
+	function showSolution() {
+		const solution =
+			level.solution ?? (state.start.size <= BFS_LIMIT[mode] ? shortestSolution(state.start, state.goal, rules) : null);
+		if (solution) loadSolution(solution);
+		else void runPaperSolver();
 	}
 
 	function onCellClick(cell: Cell) {
@@ -273,6 +312,23 @@ export function Playground() {
 					</section>
 				)}
 
+				<SolverPanel
+					name={SOLVER_NAMES[mode]}
+					run={solverRun}
+					// Phases describe the solver's moves only while those are the loaded moves.
+					current={solverRun.status === "done" && solverRun.moves === moves ? solverRun : null}
+					cursor={cursor}
+					onRun={() => void runPaperSolver()}
+					onCancel={() => {
+						cancel();
+						setSolverRun({ status: "idle" });
+					}}
+					onSeek={(index) => {
+						setPlaying(false);
+						dispatch({ type: "seek", cursor: index });
+					}}
+				/>
+
 				<section className="flex flex-col gap-2">
 					<label className="text-sm font-medium" htmlFor="moves">
 						Move list (JSON)
@@ -296,7 +352,7 @@ export function Playground() {
 						<button
 							className={button}
 							onClick={showSolution}
-							title="The level's known solution, or the shortest one by brute force (small levels only)"
+							title="The level's known solution, a shortest one for small levels, or else the paper solver's"
 						>
 							Show solution
 						</button>
@@ -307,6 +363,74 @@ export function Playground() {
 				</section>
 			</aside>
 		</div>
+	);
+}
+
+function SolverPanel({
+	name,
+	run,
+	current,
+	cursor,
+	onRun,
+	onCancel,
+	onSeek,
+}: {
+	name: string;
+	run: SolverRun;
+	current: { moves: Move[]; phases: Phase[]; ms: number } | null;
+	cursor: number;
+	onRun: () => void;
+	onCancel: () => void;
+	onSeek: (index: number) => void;
+}) {
+	// The phase of the move just played, or of the first move at the start.
+	const index = Math.max(cursor - 1, 0);
+	const active = current?.phases.findIndex((p) => index >= p.start && index < p.end) ?? -1;
+
+	return (
+		<section className="flex flex-col gap-2">
+			<div className="flex items-baseline justify-between gap-2">
+				<span className="text-sm font-medium">Paper solver</span>
+				<span className="text-xs text-zinc-500">{name}</span>
+			</div>
+			<div className="flex flex-wrap gap-1.5">
+				<button className={button} disabled={run.status === "running"} onClick={onRun}>
+					{run.status === "running" ? "Solving…" : "Run solver"}
+				</button>
+				{run.status === "running" && (
+					<button className={button} onClick={onCancel}>
+						Cancel
+					</button>
+				)}
+			</div>
+			{run.status === "error" && <p className="text-sm text-rose-600 dark:text-rose-400">{run.message}</p>}
+			{current && (
+				<>
+					<p className="text-xs text-zinc-500">
+						{current.moves.length} moves in {current.phases.length} steps, found in {Math.max(1, Math.round(current.ms))} ms. Every move was checked by the
+						rules engine.
+					</p>
+					<ol className="max-h-48 overflow-y-auto rounded-md border border-zinc-200 text-xs dark:border-zinc-800">
+						{current.phases.map((phase, i) => (
+							<li key={i}>
+								<button
+									className={`flex w-full justify-between gap-2 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+										i === active ? "bg-amber-100 font-medium dark:bg-amber-900/40" : ""
+									}`}
+									onClick={() => onSeek(phase.start)}
+									title="Jump to the start of this step"
+								>
+									<span>{phase.name}</span>
+									<span className="shrink-0 font-mono tabular-nums text-zinc-500">
+										{phase.start + 1}–{phase.end}
+									</span>
+								</button>
+							</li>
+						))}
+					</ol>
+				</>
+			)}
+		</section>
 	);
 }
 
@@ -402,7 +526,7 @@ function RandomLevelForm({ mode, onGenerate }: { mode: Level["mode"]; onGenerate
 			<p className="text-xs text-zinc-500">
 				{mode === "2d"
 					? "The same squares, scramble and seed always give the same level. Every generated level comes with a solution checked by the rules engine."
-					: "The same cubes and seed always give the same level. Levels up to 6 cubes come with a shortest solution; larger ones need the 3D solver."}
+					: "The same cubes and seed always give the same level. Levels up to 6 cubes come with a shortest solution; larger ones with the paper solver’s solution."}
 			</p>
 		</section>
 	);
