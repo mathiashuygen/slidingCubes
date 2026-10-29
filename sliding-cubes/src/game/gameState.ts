@@ -47,6 +47,9 @@ export interface GameState {
 	feedback: Feedback | null;
 	/** The move just performed (or undone, as its inverse), for animation. */
 	lastStep: { move: Move; id: number } | null;
+	/** The suggested move while a hint is shown. */
+	hint: Move | null;
+	hintsUsed: number;
 }
 
 export type GameAction =
@@ -57,11 +60,12 @@ export type GameAction =
 	| { type: "seek"; cursor: number }
 	| { type: "restart" }
 	| { type: "load-level"; level: Level }
-	| { type: "load-moves"; moves: Move[] };
+	| { type: "load-moves"; moves: Move[] }
+	| { type: "show-hint"; move: Move | null; message?: string };
 
 export function initGame(level: Level): GameState {
 	const start = toConfiguration(level.start);
-	const common = { level, start, config: start.clone(), moves: [], cursor: 0, selected: null, feedback: null, lastStep: null };
+	const common = { level, start, config: start.clone(), moves: [], cursor: 0, selected: null, feedback: null, lastStep: null, hint: null, hintsUsed: 0 };
 	if (level.mode === "2d") {
 		const target = toConfiguration(level.target);
 		return { ...common, rules: rules2D, goal: matchesTarget(target), target, box: null };
@@ -88,6 +92,7 @@ function stepTo(state: GameState, cursor: number): GameState {
 		config,
 		cursor,
 		selected: null,
+		hint: null,
 		feedback: goalFeedback(state, config, cursor),
 		lastStep: single && step ? { move: step, id: (state.lastStep?.id ?? 0) + 1 } : null,
 	};
@@ -97,8 +102,14 @@ function goalFeedback(state: GameState, config: Configuration, cursor: number): 
 	if (!state.goal.isReached(config)) return null;
 	const what = state.level.mode === "2d" ? "Target reached" : "Compacted";
 	let message = `${what} in ${cursor} move${cursor === 1 ? "" : "s"}.`;
-	const reference = state.level.solution?.length;
-	if (reference !== undefined) message += ` ${state.level.optimal ? "Shortest possible" : "Reference solution"}: ${reference}.`;
+	const { par, solution, optimal } = state.level;
+	if (par) {
+		message += ` The paper's solver needs ${par.solver}.`;
+		if (par.shortest !== undefined) message += ` Shortest possible: ${par.shortest}.`;
+	} else if (solution) {
+		message += ` ${optimal ? "Shortest possible" : "Reference solution"}: ${solution.length}.`;
+	}
+	if (state.hintsUsed > 0) message += ` Hints used: ${state.hintsUsed}.`;
 	return { tone: "success", message, cells: [] };
 }
 
@@ -106,14 +117,15 @@ function click(state: GameState, cell: Cell): GameState {
 	const { config, selected, rules } = state;
 
 	if (config.has(cell)) {
-		if (selected && equals(selected, cell)) return { ...state, selected: null, feedback: null };
+		if (selected && equals(selected, cell)) return { ...state, selected: null, feedback: null, hint: null };
 		let feedback: Feedback | null = null;
 		if (legalMovesFrom(config, cell, rules).length === 0) {
 			feedback = isConnected(config, cell)
 				? { tone: "info", message: `This ${moduleNoun(state)} has no legal move right now.`, cells: [cell] }
 				: { tone: "info", message: `This ${moduleNoun(state)} holds the others together, so it cannot move.`, cells: [cell] };
 		}
-		return { ...state, selected: cell, feedback };
+		const hint = state.hint && equals(state.hint.from, cell) ? state.hint : null;
+		return { ...state, selected: cell, feedback, hint };
 	}
 
 	if (!selected) return { ...state, feedback: null };
@@ -132,7 +144,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 		case "click":
 			return click(state, action.cell);
 		case "deselect":
-			return { ...state, selected: null, feedback: null };
+			return { ...state, selected: null, feedback: null, hint: null };
+		case "show-hint": {
+			if (!action.move) {
+				return { ...state, hint: null, feedback: { tone: "info", message: action.message ?? "No hint available.", cells: [] } };
+			}
+			const noun = moduleNoun(state);
+			return {
+				...state,
+				selected: action.move.from,
+				hint: action.move,
+				hintsUsed: state.hintsUsed + 1,
+				feedback: { tone: "info", message: action.message ?? `Hint: move the selected ${noun} to the marked cell.`, cells: [] },
+			};
+		}
 		case "undo":
 			return state.cursor > 0 ? stepTo(state, state.cursor - 1) : state;
 		case "redo":

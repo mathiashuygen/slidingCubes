@@ -5,7 +5,8 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { type Cell, checkMove, legalMovesFrom, localDestinations } from "@/engine";
 import { type Feedback, formatMoves, gameReducer, initGame, moduleNoun, parseMoves } from "@/game/gameState";
 import { generateLevel2D, generateLevel3D } from "@/game/generator";
-import { type Level, levels2D, levels3D } from "@/game/levels";
+import { type Level, levelToJson, levels2D, levels3D, parseLevel } from "@/game/levels";
+import { lessons } from "@/game/tutorial";
 import type { Move } from "@/engine";
 import type { Phase } from "@/solvers";
 import { shortestSolution } from "@/solvers/bfs";
@@ -49,7 +50,11 @@ export function Playground() {
 	const [textError, setTextError] = useState<string | null>(null);
 	const [playing, setPlaying] = useState(false);
 	const [solverRun, setSolverRun] = useState<SolverRun>({ status: "idle" });
-	const { solve, cancel } = useSolver();
+	const { solve, hint, cancel } = useSolver();
+	// The tutorial lesson being shown, or null outside the tutorial.
+	const [lessonIndex, setLessonIndex] = useState<number | null>(null);
+	const lesson = lessonIndex === null ? null : lessons[lessonIndex];
+	const [hinting, setHinting] = useState(false);
 
 	const { config, moves, cursor, selected, rules, level } = state;
 	const stateRef = useRef(state);
@@ -100,6 +105,11 @@ export function Playground() {
 		setPlaying(false);
 	}
 
+	function openLesson(index: number) {
+		setLessonIndex(index);
+		loadLevel(lessons[index].level);
+	}
+
 	function loadMoves() {
 		try {
 			dispatch({ type: "load-moves", moves: parseMoves(movesText) });
@@ -123,12 +133,35 @@ export function Playground() {
 		const response = await solve(forLevel);
 		// Ignore results for a level the player has since left.
 		if (forLevel !== stateRef.current.level) return;
-		if (!response.ok) {
-			setSolverRun({ status: "error", message: response.error });
+		if (!response.ok || response.kind !== "solve") {
+			setSolverRun({ status: "error", message: response.ok ? "Unexpected solver response." : response.error });
 			return;
 		}
 		setSolverRun({ status: "done", moves: response.output.moves, phases: response.output.phases, ms: response.ms });
 		loadSolution(response.output.moves);
+	}
+
+	async function requestHint() {
+		const asked = state.config;
+		setPlaying(false);
+		setHinting(true);
+		const response = await hint(level, [...asked]);
+		setHinting(false);
+		// Ignore the answer if the board changed while the hint was being computed.
+		if (stateRef.current.config !== asked) return;
+		if (!response.ok || response.kind !== "hint") {
+			const why = mode === "3d" ? " Compacting from here inside the original box failed; try undoing a few moves." : "";
+			dispatch({ type: "show-hint", move: null, message: `No hint available from this position.${why}` });
+			return;
+		}
+		const { move, remaining, source } = response.hint;
+		if (!move) {
+			dispatch({ type: "show-hint", move: null, message: "The level is already solved." });
+			return;
+		}
+		const count = `${remaining} move${remaining === 1 ? "" : "s"}`;
+		const how = source === "shortest" ? `The shortest way from here takes ${count}.` : `The paper's solver finishes from here in ${count}.`;
+		dispatch({ type: "show-hint", move, message: `Hint: move the selected ${noun} to the marked cell. ${how}` });
 	}
 
 	/** The level's stored solution, a shortest one for small levels, or else the paper solver's. */
@@ -158,6 +191,8 @@ export function Playground() {
 						destinations={destinations}
 						feedback={state.feedback}
 						lastStep={state.lastStep}
+						hint={state.hint}
+						focus={lesson?.focus}
 						onCellClick={onCellClick}
 					/>
 				) : (
@@ -170,6 +205,8 @@ export function Playground() {
 						candidates={candidates}
 						feedback={state.feedback}
 						lastStep={state.lastStep}
+						hint={state.hint}
+						focus={lesson?.focus}
 						onCellClick={onCellClick}
 						onDeselect={() => dispatch({ type: "deselect" })}
 					/>
@@ -179,18 +216,28 @@ export function Playground() {
 			<aside className="flex w-full flex-col gap-5 overflow-y-auto border-zinc-200 p-5 lg:w-96 lg:border-l dark:border-zinc-800">
 				<header className="flex flex-col gap-2">
 					<h1 className="text-lg font-semibold">Sliding cubes and squares</h1>
-					<div className="flex gap-1.5" role="tablist">
-						{(["2d", "3d"] as const).map((m) => (
-							<button
-								key={m}
-								role="tab"
-								aria-selected={mode === m}
-								className={`${button} ${mode === m ? "bg-zinc-900 text-white hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100" : ""}`}
-								onClick={() => mode !== m && loadLevel(levelsByMode[m][0])}
-							>
-								{m === "2d" ? "2D squares" : "3D cubes"}
-							</button>
-						))}
+					<div className="flex flex-wrap gap-1.5" role="tablist">
+						{(["tutorial", "2d", "3d"] as const).map((tab) => {
+							const active = tab === "tutorial" ? lesson !== null : lesson === null && mode === tab;
+							return (
+								<button
+									key={tab}
+									role="tab"
+									aria-selected={active}
+									className={`${button} ${active ? "bg-zinc-900 text-white hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100" : ""}`}
+									onClick={() => {
+										if (active) return;
+										if (tab === "tutorial") openLesson(0);
+										else {
+											setLessonIndex(null);
+											loadLevel(levelsByMode[tab][0]);
+										}
+									}}
+								>
+									{tab === "tutorial" ? "Tutorial" : tab === "2d" ? "2D squares" : "3D cubes"}
+								</button>
+							);
+						})}
 					</div>
 					<p className="text-sm text-zinc-500">
 						{mode === "2d"
@@ -199,34 +246,78 @@ export function Playground() {
 					</p>
 				</header>
 
-				<section className="flex flex-col gap-2">
-					<label className="text-sm font-medium" htmlFor="level">
-						Level
-					</label>
-					<select
-						id="level"
-						className="rounded-md border border-zinc-300 bg-transparent px-2 py-1.5 text-sm dark:border-zinc-700"
-						value={level.id}
-						onChange={(e) => {
-							const next = levels.find((l) => l.id === e.target.value);
-							if (next) loadLevel(next);
-						}}
-					>
-						{levels.map((l) => (
-							<option key={l.id} value={l.id}>
-								{l.name} ({l.start.length} {noun}s)
-							</option>
+				{lesson && lessonIndex !== null ? (
+					<section className="flex flex-col gap-2 rounded-md border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/40">
+						<span className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
+							Lesson {lessonIndex + 1} of {lessons.length}
+						</span>
+						<h2 className="font-semibold">{lesson.title}</h2>
+						{lesson.text.map((paragraph, i) => (
+							<p key={i} className="text-sm">
+								{paragraph}
+							</p>
 						))}
-						{!levels.includes(level) && (
-							<option value={level.id}>
-								{level.name} ({level.start.length} {noun}s)
-							</option>
-						)}
-					</select>
-					<p className="text-sm text-zinc-500">{level.description}</p>
-				</section>
+						<div className="flex gap-1.5">
+							<button className={button} disabled={lessonIndex === 0} onClick={() => openLesson(lessonIndex - 1)}>
+								Previous
+							</button>
+							{lessonIndex + 1 < lessons.length ? (
+								<button className={button} onClick={() => openLesson(lessonIndex + 1)}>
+									Next lesson
+								</button>
+							) : (
+								<button
+									className={button}
+									onClick={() => {
+										setLessonIndex(null);
+										loadLevel(levels2D[0]);
+									}}
+								>
+									On to the levels
+								</button>
+							)}
+						</div>
+					</section>
+				) : (
+					<>
+					<section className="flex flex-col gap-2">
+						<label className="text-sm font-medium" htmlFor="level">
+							Level
+						</label>
+						<select
+							id="level"
+							className="rounded-md border border-zinc-300 bg-transparent px-2 py-1.5 text-sm dark:border-zinc-700"
+							value={level.id}
+							onChange={(e) => {
+								const next = levels.find((l) => l.id === e.target.value);
+								if (next) loadLevel(next);
+							}}
+						>
+							{levels.map((l) => (
+								<option key={l.id} value={l.id}>
+									{l.name} ({l.start.length} {noun}s)
+								</option>
+							))}
+							{!levels.includes(level) && (
+								<option value={level.id}>
+									{level.name} ({level.start.length} {noun}s)
+								</option>
+							)}
+						</select>
+						<p className="text-sm text-zinc-500">{level.description}</p>
+					</section>
 
-				<RandomLevelForm key={mode} mode={mode} onGenerate={loadLevel} />
+					<RandomLevelForm key={mode} mode={mode} onGenerate={loadLevel} />
+
+					<LevelFile
+						level={level}
+						onLoad={(next) => {
+							setLessonIndex(null);
+							loadLevel(next);
+						}}
+					/>
+					</>
+				)}
 
 				<section className="flex flex-col gap-2">
 					<div className="flex items-baseline justify-between">
@@ -273,6 +364,14 @@ export function Playground() {
 							title="Back to the start position and clear all moves"
 						>
 							Reset
+						</button>
+						<button
+							className={button}
+							disabled={hinting}
+							onClick={() => void requestHint()}
+							title="Suggest a next move from a verified continuation"
+						>
+							{hinting ? "Thinking…" : "Hint"}
 						</button>
 					</div>
 					{state.feedback && (
@@ -529,6 +628,64 @@ function RandomLevelForm({ mode, onGenerate }: { mode: Level["mode"]; onGenerate
 					: "The same cubes and seed always give the same level. Levels up to 6 cubes come with a shortest solution; larger ones with the paper solver’s solution."}
 			</p>
 		</section>
+	);
+}
+
+/** Import a level from JSON, or export the current one (see parseLevel for the format). */
+function LevelFile({ level, onLoad }: { level: Level; onLoad: (level: Level) => void }) {
+	const [text, setText] = useState("");
+	const [error, setError] = useState<string | null>(null);
+
+	function download() {
+		const url = URL.createObjectURL(new Blob([levelToJson(level)], { type: "application/json" }));
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `${level.id}.json`;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
+	return (
+		<details className="group flex flex-col gap-2">
+			<summary className="cursor-pointer text-sm font-medium">Level file (JSON)</summary>
+			<div className="mt-2 flex flex-col gap-2">
+				<textarea
+					aria-label="Level JSON"
+					className="h-32 rounded-md border border-zinc-300 bg-transparent p-2 font-mono text-xs dark:border-zinc-700"
+					placeholder={'{"mode": "2d", "name": "My level",\n "start": [[0, 0], [1, 0], [1, 1]],\n "target": [[0, 0], [1, 0], [0, 1]]}'}
+					spellCheck={false}
+					value={text}
+					onChange={(e) => setText(e.target.value)}
+				/>
+				{error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+				<div className="flex flex-wrap gap-1.5">
+					<button
+						className={button}
+						disabled={text.trim() === ""}
+						onClick={() => {
+							try {
+								onLoad(parseLevel(JSON.parse(text)));
+								setError(null);
+							} catch (e) {
+								setError(e instanceof Error ? e.message : String(e));
+							}
+						}}
+					>
+						Load level
+					</button>
+					<button className={button} onClick={() => setText(levelToJson(level))}>
+						Show this level
+					</button>
+					<button className={button} onClick={download}>
+						Download
+					</button>
+				</div>
+				<p className="text-xs text-zinc-500">
+					Fields: mode (&quot;2d&quot; or &quot;3d&quot;), start, target (2D only), and optionally id, name, description and par. The 3D box is the bounding box of
+					the start.
+				</p>
+			</div>
+		</details>
 	);
 }
 

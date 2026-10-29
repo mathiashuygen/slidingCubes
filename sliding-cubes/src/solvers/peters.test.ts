@@ -46,6 +46,14 @@ describe("Peters et al. 3D compaction", () => {
 		});
 	}
 
+	it("starts by bringing back a cube that is just outside the box (mid-game hints)", () => {
+		const box = { min: [0, 0, 0] as Cell, max: [1, 0, 1] as Cell };
+		const midGame = new Configuration([[0, 0, 0], [1, 0, 0], [1, 1, 0]]);
+		const { moves, phases } = compact3D(midGame, box);
+		expect(phases[0].name).toMatch(/^Bring the cube outside the box back in/);
+		expect(replay(midGame, moves, rules3D(box), compactedInBox(box)).ok).toBe(true);
+	});
+
 	it("brings far-away floor cubes in under a bridge", () => {
 		for (const [k, h] of [[5, 1], [7, 2], [7, 4]]) {
 			const cells: Cell[] = [];

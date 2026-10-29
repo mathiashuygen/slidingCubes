@@ -1,0 +1,26 @@
+{
+	"2d": [
+		{"id":"first-slide","name":"First slide","description":"Slide the top square along its two neighbours.","start":[[0,0],[1,0],[1,1]],"target":[[0,0],[1,0],[0,1]],"par":{"solver":9,"shortest":1}},
+		{"id":"turn-corner","name":"Around the corner","description":"Rotate the end square around its neighbour.","start":[[0,0],[1,0],[2,0]],"target":[[0,0],[1,0],[1,1]],"par":{"solver":13,"shortest":1}},
+		{"id":"stand-up","name":"Stand up","description":"Turn the horizontal chain into a vertical one.","start":[[0,0],[1,0],[2,0],[3,0]],"target":[[0,0],[0,1],[0,2],[0,3]],"par":{"solver":32,"shortest":8}},
+		{"id":"cross","name":"Cross to corner","description":"Fold the cross into an L. Watch the centre square: it holds the others together.","start":[[1,0],[1,1],[0,1],[2,1],[1,2]],"target":[[0,0],[1,0],[2,0],[0,1],[0,2]],"par":{"solver":45,"shortest":4}},
+		{"id":"plus","name":"Holding together","description":"Straighten the plus into a line. A square that holds the others together cannot move.","start":[[1,0],[0,1],[1,1],[2,1],[1,2]],"target":[[0,0],[1,0],[2,0],[3,0],[4,0]],"par":{"solver":58,"shortest":7}},
+		{"id":"snake","name":"Snake","description":"Turn the snake around.","start":[[0,0],[1,0],[2,0],[2,1],[2,2],[3,2]],"target":[[0,0],[0,1],[0,2],[1,2],[2,2],[2,1]],"par":{"solver":71,"shortest":8}},
+		{"id":"staircase","name":"Staircase","description":"Fold the staircase into a corner.","start":[[0,0],[1,0],[1,1],[2,1],[2,2],[3,2],[3,3]],"target":[[0,0],[0,1],[0,2],[0,3],[1,3],[2,3],[3,3]],"par":{"solver":92,"shortest":14}},
+		{"id":"ring","name":"Fill the hole","description":"Turn the ring around a hole into a solid block.","start":[[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]],"target":[[0,0],[1,0],[2,0],[3,0],[0,1],[1,1],[2,1],[3,1]],"par":{"solver":87,"shortest":6}},
+		{"id":"comb","name":"Comb","description":"Gather the teeth of the comb into a diamond.","start":[[0,0],[1,0],[2,0],[3,0],[4,0],[0,1],[2,1],[4,1],[0,2],[2,2],[4,2]],"target":[[1,0],[2,0],[3,0],[1,1],[2,1],[3,1],[1,2],[2,2],[3,2],[2,3],[2,-1]],"par":{"solver":165}},
+		{"id":"spiral","name":"Spiral","description":"Unwind the spiral into a block.","start":[[0,0],[1,0],[2,0],[3,0],[3,1],[3,2],[3,3],[2,3],[1,3],[0,3],[0,2],[1,2]],"target":[[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3]],"par":{"solver":187}},
+		{"id":"two-rooms","name":"Two rooms","description":"Two holes, two cycles: flatten them into a long block.","start":[[0,0],[1,0],[2,0],[3,0],[4,0],[0,1],[2,1],[4,1],[0,2],[1,2],[2,2],[3,2],[4,2]],"target":[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0],[0,1],[1,1],[2,1],[3,1],[4,1],[5,1]],"par":{"solver":253}}
+	],
+	"3d": [
+		{"id":"drop","name":"Drop it","description":"Slide the top cube down into the corner.","start":[[0,0,0],[1,0,0],[1,0,1]],"par":{"solver":1,"shortest":1}},
+		{"id":"arch","name":"Under the arch","description":"Fill the gap under the arch.","start":[[0,0,0],[0,0,1],[1,0,1],[2,0,1],[2,0,0]],"par":{"solver":4,"shortest":2}},
+		{"id":"pillar","name":"Pillar","description":"Bring the pillar down towards the corner.","start":[[0,0,0],[1,0,0],[1,1,0],[1,1,1],[1,1,2]],"par":{"solver":3,"shortest":3}},
+		{"id":"two-layers","name":"Two layers","description":"Compact both layers into the corner. A cube may step just outside the box, but only one at a time.","start":[[0,0,0],[1,0,0],[0,1,0],[1,1,0],[1,1,1],[0,0,1]],"par":{"solver":1,"shortest":1}},
+		{"id":"staircase-3d","name":"Spatial staircase","description":"A staircase climbing in all three directions.","start":[[0,0,0],[1,0,0],[1,1,0],[1,1,1],[2,1,1],[2,2,1],[2,2,2]],"par":{"solver":7,"shortest":6}},
+		{"id":"tower","name":"Tower","description":"A tall pillar in the far corner: bring it down.","start":[[0,0,0],[1,0,0],[2,0,0],[2,1,0],[2,1,1],[2,1,2],[2,1,3],[2,1,4]],"par":{"solver":11,"shortest":10}},
+		{"id":"bridge","name":"Bridge","description":"Two feet joined by a fragile bridge.","start":[[0,0,0],[0,0,1],[0,0,2],[1,0,2],[2,0,2],[3,0,2],[4,0,2],[4,0,1],[4,0,0]],"par":{"solver":15}},
+		{"id":"corner-pillars","name":"Corner pillars","description":"Pillars on two sides of the box.","start":[[0,0,0],[1,0,0],[2,0,0],[2,0,1],[2,0,2],[0,1,0],[0,2,0],[0,2,1],[0,2,2],[1,2,2]],"par":{"solver":8}},
+		{"id":"scattered","name":"Scattered","description":"A winding path through all three dimensions.","start":[[0,0,0],[0,1,0],[0,2,0],[0,2,1],[1,2,1],[2,2,1],[2,2,2],[2,1,2],[2,0,2],[3,0,2],[3,0,1],[3,0,0]],"par":{"solver":19}}
+	]
+}

@@ -15,6 +15,10 @@ interface Board2DProps {
 	destinations: CheckedMove[];
 	feedback: Feedback | null;
 	lastStep: { move: Move; id: number } | null;
+	/** A suggested move, whose destination is marked. */
+	hint?: Move | null;
+	/** Cells to outline together, e.g. the 2×2 square a tutorial lesson is about. */
+	focus?: Cell[];
 	onCellClick: (cell: Cell) => void;
 }
 
@@ -22,7 +26,7 @@ interface Board2DProps {
  * SVG grid in cell units. Cell (x, y) covers [x, x + 1] × [-y - 1, -y] in SVG
  * coordinates, so y points up like in the papers.
  */
-export function Board2D({ config, start, target, selected, destinations, feedback, lastStep, onCellClick }: Board2DProps) {
+export function Board2D({ config, start, target, selected, destinations, feedback, lastStep, hint, focus, onCellClick }: Board2DProps) {
 	const svgRef = useRef<SVGSVGElement>(null);
 	const [hovered, setHovered] = useState<Cell | null>(null);
 
@@ -126,12 +130,48 @@ export function Board2D({ config, start, target, selected, destinations, feedbac
 				/>
 			))}
 
+			{focus && focus.length > 0 && <FocusOutline cells={focus} />}
+
+			{hint && (
+				<rect
+					x={hint.to[0] + 0.08}
+					y={-hint.to[1] - 1 + 0.08}
+					width={0.84}
+					height={0.84}
+					rx={0.14}
+					fill="none"
+					strokeWidth={0.08}
+					strokeDasharray="0.14 0.08"
+					className="animate-pulse stroke-amber-500"
+				/>
+			)}
+
 			<g fill="none" strokeWidth={0.08} className="stroke-rose-500">
 				{problemCells.map((c) => (
 					<rect key={cellKey(c)} x={c[0] + 0.04} y={-c[1] - 1 + 0.04} width={0.92} height={0.92} rx={0.12} />
 				))}
 			</g>
 		</svg>
+	);
+}
+
+/** A dashed rectangle around the bounding box of `cells`. */
+function FocusOutline({ cells }: { cells: Cell[] }) {
+	const xs = cells.map((c) => c[0]);
+	const ys = cells.map((c) => c[1]);
+	const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs) + 1, Math.min(...ys), Math.max(...ys) + 1];
+	return (
+		<rect
+			x={x0 - 0.04}
+			y={-y1 - 0.04}
+			width={x1 - x0 + 0.08}
+			height={y1 - y0 + 0.08}
+			rx={0.12}
+			fill="none"
+			strokeWidth={0.06}
+			strokeDasharray="0.2 0.1"
+			className="stroke-sky-600 dark:stroke-sky-400"
+		/>
 	);
 }
 

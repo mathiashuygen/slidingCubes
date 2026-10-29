@@ -26,7 +26,9 @@ import { MoveRecorder, type SolverOutput, SolverError, findPath, modulePath } fr
  * bottom layer with y in the role of z. Every operation is checked move by
  * move by the rules engine and must strictly lower the potential Π, which
  * guarantees termination. Coordinates are relative to the minimum corner of
- * the start's bounding box, which is also the box of the in-place restriction.
+ * `box` (by default the start's bounding box), which is also the box of the
+ * in-place restriction. Hints pass the level's original box for a mid-game
+ * state, which the paper's guarantee does not cover; replay checks the result.
  *
  * Not implemented from the paper: operation [i] (shoving a clearing pillar
  * with cubes gathered from a small low component), [j], and the pinned-cube
@@ -34,13 +36,24 @@ import { MoveRecorder, type SolverOutput, SolverError, findPath, modulePath } fr
  * bounded search for any potential-reducing move sequence takes over, and
  * its moves are labelled as such.
  */
-export function compact3D(start: Configuration): SolverOutput {
+export function compact3D(start: Configuration, box: Box = start.boundingBox()): SolverOutput {
 	if (!isConnected(start)) throw new SolverError("The start configuration must be connected.");
-	const box = start.boundingBox();
 	const rules = rules3D(box);
+	const outside = rules.space.checkStart(start);
+	if (outside) throw new SolverError(outside);
 	const goal = compactedInBox(box);
 	const recorder = new MoveRecorder(start.clone(), rules);
 	const frames = [frame3D(box, rules), frameBottomLayer(box, rules)];
+
+	// A mid-game state (for hints) may have its one cube just outside the box;
+	// the paper always starts inside, so first bring that cube back in.
+	const outsider = recorder.config.toArray().find((c) => !inBox(c, box));
+	if (outsider) {
+		const back = findPath(recorder.config, outsider, rules, (cell) => inBox(cell, box));
+		if (!back) throw new SolverError("The cube outside the box cannot get back in.");
+		recorder.setPhase("Bring the cube outside the box back in (not in the paper)");
+		recorder.applyAll(back.moves);
+	}
 
 	let current = potential(recorder.config, box);
 	// Every operation lowers Π by at least one, so this bounds the number of operations.

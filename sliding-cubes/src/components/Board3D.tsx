@@ -21,6 +21,7 @@ const COLORS = {
 	support: "#f59e0b",
 	problem: "#f43f5e",
 	box: "#10b981",
+	focus: "#0284c7",
 };
 
 export interface Candidate {
@@ -36,6 +37,10 @@ interface Board3DProps {
 	candidates: Candidate[];
 	feedback: Feedback | null;
 	lastStep: { move: Move; id: number } | null;
+	/** A suggested move, whose destination is outlined. */
+	hint?: Move | null;
+	/** Cells to outline, e.g. the 2×2 square a tutorial lesson is about. */
+	focus?: Cell[];
 	onCellClick: (cell: Cell) => void;
 	onDeselect: () => void;
 }
@@ -82,6 +87,8 @@ function Scene({
 	candidates,
 	feedback,
 	lastStep,
+	hint,
+	focus,
 	onCellClick,
 	middle,
 	size,
@@ -159,6 +166,9 @@ function Scene({
 					))}
 				</>
 			)}
+
+			{hint && <Outline cell={hint.to} color={COLORS.selected} scale={1.12} />}
+			{focus?.map((c) => <Outline key={`f${cellKey(c)}`} cell={c} color={COLORS.focus} scale={1.04} />)}
 
 			{problemCells.map((c) => (
 				<Outline key={`p${cellKey(c)}`} cell={c} color={COLORS.problem} scale={1.1} />
