@@ -7,14 +7,55 @@ A browser game and visualiser for reconfiguring modular robots in the sliding sq
 
 ## Running
 
+You need [Node.js](https://nodejs.org/) 24 or newer (it comes with `npm`). Check with `node -v`.
+
+All commands are run from the `sliding-cubes/` folder (the one containing `package.json`), not the repository root.
+
+### 1. Install the dependencies (once)
+
 ```bash
-npm install
-npm run dev        # http://localhost:3000
-npm test           # Vitest: engine, solvers, levels, tutorial
-npm run build      # static site in out/ (no backend needed)
+cd sliding-cubes
+npm ci
 ```
 
-Or with Docker: `docker compose up` serves the dev server on port 3001.
+`npm ci` installs the exact versions from `package-lock.json`. Run it again after pulling changes that touch `package.json`.
+
+### 2. Start the app
+
+```bash
+npm run dev
+```
+
+Open <http://localhost:3000> in a browser. The page reloads by itself when you edit the code; stop the server with `Ctrl+C`. If port 3000 is taken, Next.js picks the next free one and prints it in the terminal.
+
+### Other commands
+
+```bash
+npm test           # run the Vitest suite once: engine, solvers, levels, tutorial
+npm run test:watch # rerun the tests on every change
+npm run lint       # ESLint
+npm run build      # build the static site into out/
+```
+
+### Serving the built site
+
+The app is a static site with no backend (`output: "export"`), so `npm start` does not work. After `npm run build`, serve the `out/` folder with any static file server, for example:
+
+```bash
+python3 -m http.server 8000 --directory out
+```
+
+and open <http://localhost:8000>. The `out/` folder can also be put on any static host (GitHub Pages, Netlify, …) as is.
+
+### With Docker
+
+If you have Docker and no Node.js, run this in `sliding-cubes/`:
+
+```bash
+docker compose up
+```
+
+It builds the image, starts the dev server and serves it at <http://localhost:3001>.
 
 ## What is in the app
 
