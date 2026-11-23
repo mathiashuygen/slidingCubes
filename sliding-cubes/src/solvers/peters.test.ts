@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Cell, Configuration, compactedInBox, replay, rules3D, sub } from "@/engine";
+import { type Cell, Configuration, applyMove, compactedInBox, equals, replay, rules3D, sub } from "@/engine";
 import { growShape, seededRandom } from "@/game/generator";
 import { levels3D, toConfiguration } from "@/game/levels";
 import { compact3D, potential } from "./peters";
@@ -30,7 +30,7 @@ describe("Peters et al. 3D compaction", () => {
 
 	it("labels every move with an operation of the paper", () => {
 		const { phases } = check(toConfiguration(levels3D[2].start));
-		for (const { name } of phases) expect(name).toMatch(/^\[[a-h]\] |^Fallback/);
+		for (const { name } of phases) expect(name).toMatch(/^\[[a-j]\] /);
 	});
 
 	for (const size of [4, 8, 14, 22]) {
@@ -54,12 +54,76 @@ describe("Peters et al. 3D compaction", () => {
 		expect(replay(midGame, moves, rules3D(box), compactedInBox(box)).ok).toBe(true);
 	});
 
-	it("brings far-away floor cubes in under a bridge", () => {
-		for (const [k, h] of [[5, 1], [7, 2], [7, 4]]) {
-			const cells: Cell[] = [];
-			for (let z = 0; z <= h; z++) cells.push([0, 0, z], [k, 0, z]);
-			for (let x = 1; x < k; x++) cells.push([x, 0, h], [x, 1, h]);
-			check(new Configuration(cells));
+	function bridge(width: number, height: number): Configuration {
+		const cells: Cell[] = [];
+		for (let z = 0; z <= height; z++) cells.push([0, 0, z], [width, 0, z]);
+		for (let x = 1; x < width; x++) cells.push([x, 0, height], [x, 1, height]);
+		return new Configuration(cells);
+	}
+
+	it("gathers under a height-one pillar and lowers its head in the same operation", () => {
+		const start = bridge(5, 1);
+		const { moves, phases } = check(start);
+		const phase = phases.find((p) => p.name.startsWith("[h]"))!;
+		const end = moves[phase.end - 1];
+		expect(end.from[2]).toBe(1);
+		expect(end.to[2]).toBe(0);
+	});
+
+	it("restores the floor after short and long clearing-pillar shoves", () => {
+		for (const [height, variant] of [[4, "short"], [7, "zipper"]] as const) {
+			const state = bridge(7, height);
+			const { phases, moves } = check(state);
+			const floor = () => state.toArray().filter((c) => c[2] === 0).map((c) => c.join(",")).sort();
+			let observed = false;
+			for (const phase of phases) {
+				const before = floor();
+				for (const move of moves.slice(phase.start, phase.end)) applyMove(state, move);
+				if (phase.name.startsWith("[i]")) {
+					expect(floor()).toEqual(before);
+					if (phase.name.includes(variant)) observed = true;
+				}
+			}
+			expect(observed).toBe(true);
 		}
+	});
+
+	it("executes the tall zipper inside a bridge's original box", () => {
+		const { phases } = check(bridge(7, 10));
+		expect(phases.some((p) => p.name.startsWith("[e] long zipper shove"))).toBe(true);
+	});
+
+	it("moves the left endpoint and lowers the one-cube clearing pillar in Figure 7", () => {
+		const start = new Configuration([[5, 1, 0], [5, 0, 0], [4, 1, 0], [3, 1, 0], [2, 1, 0], [1, 1, 0], [0, 1, 0]]);
+		const { phases, moves } = check(start);
+		const strip = phases.find((p) => p.name.startsWith("[j]"))!;
+		const first = moves[strip.start], last = moves[strip.end - 1];
+		expect(first.from[1]).toBe(0);
+		expect(last.from[1]).toBe(1);
+		expect(last.to).toEqual(first.from);
+	});
+
+	it("shifts a big floor strip while keeping its attachment to the bridge fixed", () => {
+		const pin: Cell = [2, 0, 0];
+		const start = new Configuration([[0, 0, 0], pin, [3, 0, 0], [4, 0, 0],
+			[0, 0, 1], [1, 0, 1], [2, 0, 1], [0, 1, 0]]);
+		const { moves, phases } = check(start);
+		expect(phases[0].name).toMatch(/^\[j\].*pinned/);
+		for (const m of moves.slice(0, phases[0].end)) {
+			expect(equals(m.from, pin)).toBe(false);
+			expect(m.to[2]).toBe(0);
+		}
+	});
+
+	it("completes a planar unlock when the sideways step offsets the height reduction", () => {
+		check(new Configuration([[0, 0, 0], [1, 0, 0], [2, 0, 0], [2, 1, 0], [2, 2, 0],
+			[2, 3, 0], [1, 3, 0], [0, 3, 0], [0, 4, 0]]));
+	});
+
+	it("replays a translated bridge under the same in-place constraints", () => {
+		const start = bridge(7, 4);
+		const shift: Cell = [13, -7, 4];
+		const translated = new Configuration(start.toArray().map((c) => sub(c, shift)));
+		expect(check(translated).moves.length).toBe(check(start).moves.length);
 	});
 });

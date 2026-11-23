@@ -96,13 +96,13 @@ Builds a horizontal chain east of the rightmost column, one square per iteration
 
 ### 3D: Peters et al. (`src/solvers/peters.ts`)
 
-Like the authors' implementation, repeatedly performs the first operation that applies: [a]–[d] local z-reductions on non-cut based subpillars, [e] pillar shoves, [f] potential-reducing moves, [g]–[h] on clear low components, then the same operations in 2D on the bottom layer. Every operation must strictly lower the potential Π (weights 17, 16, 3, 2, 1).
+The solver compacts into a downward-closed subset of the original bounding box. It checks the paper’s operations [a]–[j] and replays each accepted sequence with the shared move engine. Every completed operation strictly decreases the weighted potential Π. Hints first bring an exterior cube back inside the original box when necessary.
 
-**Deviations, all labelled in the move list:**
+- **Local reductions [a]–[g].** The solver checks non-cut subpillars and legal lowering moves. Long pillar shoves use the seven elementary moves in the Figure 3 zipper step for each additional level. The zipper can also run in the reflected orientation at a box wall.
+- **Small clear floor components [h], [i].** The solver gathers floor cubes around the clearing pillar. It lowers the height-one head after gathering in [h]. For [i] it fills a short side column directly or builds a zipper, then restores the original floor occupancy.
+- **Big floor components and strips [j].** The solver runs a planar subproblem on the selected component, pins the cube under its clearing pillar, and checks each proposed planar move against both the component and the surrounding 3D configuration. The same planar operations finish the bottom layer. A one-cell-thick vertical box can use the corresponding vertical plane.
 
-- Operations [i] and [j] and the pinned-cube recursion on big low components are not implemented. When nothing implemented applies, a fallback moves one cube along a legal path to the reachable cell of lowest potential, and if that fails, a bounded search looks for any potential-reducing sequence. On random shapes the fallbacks never fire; on bridge-like shapes built to trigger these cases they do, and every instance still compacts.
-- Pillar shoves use the short shove [e′] for every height, which takes O(|P|²) moves; the paper's linear "zipper" for |P| ≥ 9 is only shown in a figure and is not reconstructed.
-- For hints from a mid-game state, a cube that is just outside the box is first brought back in.
+The planner uses shortest legal paths to route individual cubes to specified destinations and considers alternate placement orders for the bounded-size helper patterns. Those searches can affect planning time. The paper’s asymptotic bound concerns the number of elementary moves. Replay and the test suite check concrete inputs.
 
 ## Hints
 
@@ -130,6 +130,6 @@ Like the authors' implementation, repeatedly performs the first operation that a
 From the test suite and experiments during development (seeded, reproducible):
 
 - **2D solver:** no failures on over 4,000 random and hole-heavy shapes; all four steps occur. Compared with the shortest solutions, Dumitrescu–Pach is far from optimal on small levels, e.g. 71 vs 8 moves ("Snake") and 92 vs 14 ("Staircase").
-- **3D solver:** 141 random shapes of 4–30 cubes compact without fallbacks in about 0.4–0.5 × S(C) moves, where S(C) = Σ(x + y + z), consistent with the O(S(C)) bound. On the curated levels it is close to optimal, e.g. 11 vs 10 moves ("Tower").
+- **3D solver:** The tests replay curated levels, seeded random shapes, and bridges that exercise the short shove, long zipper, helper restoration and pinned strip operations.
 - **In-place exterior cell:** none of 919 random shapes of 3–6 cubes needed a cube outside the box to compact; the exterior cell seems to matter only for larger configurations.
 - **3D mid-game hints:** from 300 positions (random levels of 5–16 cubes after 5–60 random moves), compaction inside the original box succeeded every time once an outside cube is first brought back in.
