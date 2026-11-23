@@ -106,8 +106,9 @@ function onOuterBoundary(hole: Map<string, number>, c: Cell): boolean {
 }
 
 /**
- * The region R(C) enclosed by a block's outer cycle: the block's cells plus
- * every cell the outside cannot reach without crossing the block.
+ * The region R(C) enclosed by the outer cycle of a biconnected block.
+ * Its edges join side-adjacent centers. Two diagonal tips leave a gap,
+ * so the exterior flood fill can also step diagonally between empty centers.
  */
 function enclosedRegion(block: Cell[]): Set<string> {
 	const keys = new Set(block.map(cellKey));
@@ -119,7 +120,7 @@ function enclosedRegion(block: Cell[]): Set<string> {
 	outside.add(cellKey(queue[0]));
 	while (queue.length > 0) {
 		const c = queue.pop()!;
-		for (const d of SIDES) {
+		for (const d of AROUND) {
 			const n = shift(c, d);
 			const k = cellKey(n);
 			if (n[0] < x0 || n[0] > x1 || n[1] < y0 || n[1] > y1 || keys.has(k) || outside.has(k)) continue;

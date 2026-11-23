@@ -52,6 +52,23 @@ describe("Dumitrescu–Pach chain construction", () => {
 		const names = new Set(output.phases.map((p) => p.name));
 		expect([...names].every((name) => /^Step (1\.A|1\.B|2\.A|2\.B)$/.test(name))).toBe(true);
 	});
+
+	it("selects the separate inner cycle when frame tips touch diagonally", () => {
+		const cells: [number, number][] = [];
+		// A two-cell-thick frame with the upper-right corner removed.
+		for (let x = 0; x < 10; x++) {
+			for (let y = 0; y < 10; y++) {
+				if (x < 2 || y < 2 || (x < 8 && y >= 8) || (x >= 8 && y < 8)) cells.push([x, y]);
+			}
+		}
+		// A 2×2 cycle attached to the left wall by a single square.
+		const start = squares(...cells, [2, 4], [3, 4], [3, 5], [4, 4], [4, 5]);
+		const { output, chain } = toChain(start);
+		expect(output.phases[0]?.name).toBe("Step 2.B");
+		expect(output.moves[0]?.from).toEqual([4, 5, 0]);
+		const target = new Configuration(Array.from({ length: start.size }, (_, i): Cell => [chain.x + i, chain.y, 0]));
+		expect(replay(start, output.moves, rules2D, matchesTarget(target)).ok).toBe(true);
+	});
 });
 
 describe("chain relocation", () => {
