@@ -22,7 +22,7 @@ describe("curated levels", () => {
 			if (level.par?.shortest !== undefined) {
 				expect(shortestSolution(state.start, state.goal, state.rules, 300_000)?.length).toBe(level.par.shortest);
 			}
-		});
+		}, 30_000); // The shortest-solution search alone takes about 5 s on "Tower".
 	}
 
 	it("gets harder: module counts never decrease along each list", () => {

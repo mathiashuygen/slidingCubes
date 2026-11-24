@@ -115,6 +115,20 @@ describe("Peters et al. 3D compaction", () => {
 		}
 	});
 
+	it("applies [j] on a big strip whose only high component is the pinned cube's pillar (Lemma 11)", () => {
+		// L = the x = 2 column plus (3,0,0) and (4,0,0); its only high component is the pillar on the pinned (2,2,0).
+		const start = new Configuration([[0, 0, 0], [0, 1, 0], [0, 2, 0], [0, 2, 1], [1, 2, 1], [2, 2, 1],
+			[2, 0, 0], [2, 1, 0], [2, 2, 0], [3, 0, 0], [4, 0, 0]]);
+		const { phases } = check(start);
+		expect(phases.some((p) => p.name.startsWith("[j] clear a low strip (2D, pinned"))).toBe(true);
+	});
+
+	it("chooses e again in [h] when the gathered square has covered it", () => {
+		// The first e is (3,2,0), inside the 3×3 square around the cube under the pillar.
+		check(new Configuration([[0, 0, 0], [0, 1, 0], [0, 2, 0], [0, 2, 1], [0, 2, 2], [1, 2, 2], [2, 2, 2], [3, 2, 2],
+			[4, 2, 2], [5, 2, 2], [5, 2, 1], [2, 2, 0], [3, 2, 0], [4, 2, 0], [5, 2, 0], [6, 2, 0]]));
+	});
+
 	it("completes a planar unlock when the sideways step offsets the height reduction", () => {
 		check(new Configuration([[0, 0, 0], [1, 0, 0], [2, 0, 0], [2, 1, 0], [2, 2, 0],
 			[2, 3, 0], [1, 3, 0], [0, 3, 0], [0, 4, 0]]));

@@ -558,6 +558,8 @@ function lowComponentOperation(config: Configuration, frame: Frame): Operation |
 		column(frame, c[0], c[2], frame.floor, pin[1]).every((p) => config.has(p))));
 	const root = atOrigin ?? atPin ?? lows[0];
 	const clear = [];
+	// Strips attached to the pinned cube's own pillar (Lemma 11, single-pillar case).
+	const pinnedStrips: { low: Cell[]; p: Pillar }[] = [];
 	// Try non-root components first. A sole origin-free strip can itself be
 	// clear (Lemma 11); the pin and its pillar remain protected throughout.
 	for (const low of [...lows.filter((l) => l !== root), root]) {
@@ -569,7 +571,10 @@ function lowComponentOperation(config: Configuration, frame: Frame): Operation |
 			const base = frame.toCell(p.a, p.b, frame.floor);
 			if (p.zb !== frame.floor + 1 || !footprint.has(base)) continue;
 			const cells = column(frame, p.a, p.b, p.zb, p.zt);
-			if (pin && cells.some((c) => equals(c, pin))) continue;
+			if (pin && cells.some((c) => equals(c, pin))) {
+				pinnedStrips.push({ low, p });
+				continue;
+			}
 			if (connectedWithout(rest, cells)) clear.push({ low, p, base });
 		}
 	}
@@ -594,6 +599,13 @@ function lowComponentOperation(config: Configuration, frame: Frame): Operation |
 			if (op) return op;
 		}
 	}
+	// Lemma 11: if the only high component is the pinned cube's pillar, the
+	// paper applies [j] with that pillar as P. Only [j]'s first case is used,
+	// which moves the rightmost cube of the strip and never touches P.
+	for (const { low, p } of pinnedStrips) {
+		const op = stripOperation(config, frame, low, p, true);
+		if (op) return op;
+	}
 	// Lemma 11, last case: the entire pinned component is already a
 	// one-dimensional strip. Its attachment is the parent's pin; there is
 	// no second clearing pillar inside the strip.
@@ -611,8 +623,11 @@ function lowComponentOperation(config: Configuration, frame: Frame): Operation |
 	return null;
 }
 
-/** Figure 7. The strip is ordered along x, with y playing the role of height. */
-function stripOperation(config: Configuration, frame: Frame, low: Cell[], p: Pillar): Operation | null {
+/**
+ * Figure 7. The strip is ordered along x, with y playing the role of height.
+ * With `shiftOnly`, only the first case (rightmost cube to the left end) applies.
+ */
+function stripOperation(config: Configuration, frame: Frame, low: Cell[], p: Pillar, shiftOnly = false): Operation | null {
 	const x = (c: Cell) => frame.fromCell(c)[0];
 	const strip = low.slice().sort((a, b) => x(a) - x(b));
 	const left = strip[0], right = strip[strip.length - 1];
@@ -621,6 +636,7 @@ function stripOperation(config: Configuration, frame: Frame, low: Cell[], p: Pil
 	if (!attachment) return null;
 	const work = config.clone();
 	const moves: Move[] = [];
+	if (shiftOnly && equals(attachment, right)) return null;
 	if (!equals(attachment, right)) {
 		const dest = frame.toCell(x(left) - 1, p.b, frame.floor);
 		if (!relocate(work, moves, right, dest, frame)) return null;
@@ -682,23 +698,23 @@ function underPillarOperation(config: Configuration, frame: Frame, low: Cell[], 
 	if (!count || (count !== sides.length && p.zt !== floor + 1)) return null;
 	const cut = !isConnected(config, base);
 	const [minA, minB] = frame.fromCell(frame.box.min);
-	let target: Cell | undefined;
-	for (let y = b; y >= minB && !target; y--) {
-		for (let x = a; x >= minA; x--) {
-			const c = frame.toCell(x, y, floor);
-			if (!config.has(c)) {
-				target = c;
-				break;
+	// The paper's e: an empty floor cell with e ≤ c in both coordinates, highest y, then highest x.
+	const emptyCell = (state: Configuration): Cell | undefined => {
+		for (let y = b; y >= minB; y--) {
+			for (let x = a; x >= minA; x--) {
+				const c = frame.toCell(x, y, floor);
+				if (!state.has(c)) return c;
 			}
 		}
-	}
-	if (!target) return null;
-	const e = target;
+	};
+	const e = emptyCell(config);
+	if (!e) return null;
 	function finish(state: Configuration, gathered: Move[]): Operation | null {
 		if (!isConnected(state, base)) return null;
-		// If a gathered helper already occupies e, it can take the floor
-		// cube's final role. Use the freed cube to complete the gathering patch.
-		const destinations = state.has(e) ? floorSquare(frame, a, b) : [e];
+		// Gathering can fill e when it lies in the 3×3 square. Then choose e
+		// again by the same rule, or else a free cell of the square.
+		const again = emptyCell(state);
+		const destinations = state.has(e!) ? [...(again ? [again] : []), ...floorSquare(frame, a, b)] : [e!];
 		for (const dest of destinations) {
 			if (state.has(dest)) continue;
 			const work = state.clone();
