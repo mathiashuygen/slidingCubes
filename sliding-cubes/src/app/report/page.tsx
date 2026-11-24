@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CaseAnimation } from "./animations";
+import { ChainRelocationFigure, GatherFigure, PinnedStripFigure, ThinBridgeFigure } from "./figures";
 
 export const metadata: Metadata = {
 	title: "Report · Sliding Cubes",
@@ -198,7 +200,7 @@ export default function Report() {
 				<p>
 					We studied this question in the sliding square model (2D) and the sliding cube model (3D),
 					and built a browser application around it. Players move squares and cubes themselves, and
-					both solvers reach the required goal on all 20 curated levels. They are based on these two algorithms:
+					both solvers reach the required goal on all 21 curated levels. They are based on these two algorithms:
 				</p>
 				<ul className="list-disc pl-6">
 					<li>
@@ -371,7 +373,7 @@ export default function Report() {
 						breadth-first search for shortest solutions of small levels.
 					</li>
 					<li>
-						<strong>Game</strong>: a tutorial of nine lessons, 11 curated 2D levels and 9 curated 3D
+						<strong>Game</strong>: a tutorial of nine lessons, 11 curated 2D levels and 10 curated 3D
 						levels, a seeded random level generator, undo and redo, and a score against the solver.
 					</li>
 					<li>
@@ -395,7 +397,7 @@ export default function Report() {
 				<p>
 					Because every solver move is checked by the rules engine, a bug in a solver shows up as a
 					failed replay or as a state where no operation applies, never as a silently illegal
-					solution. The test suite (133 tests) replays the curated levels, seeded random shapes and
+					solution. The test suite (135 tests) replays the curated levels, seeded random shapes and
 					hand-built cases for the more involved operations ([e], [h], [i] and [j]), and checks that every level&apos;s stored move count
 					still matches the solver.
 				</p>
@@ -407,22 +409,36 @@ export default function Report() {
 				<ul className="list-disc pl-6">
 					<li>
 						The proof of Lemma 11 uses <Op>[j]</Op> with the pillar through the pinned cube as
-						clearing pillar; our solver skipped that pillar.
+						clearing pillar; our solver skipped that pillar (Figure 2).
 					</li>
 					<li>
 						In <Op>[h]</Op>, the gathered cubes could fill the empty cell e chosen beforehand; the
-						solver now chooses e again by the paper&apos;s rule.
+						solver now chooses e again by the paper&apos;s rule (Figure 3).
 					</li>
 				</ul>
+				<PinnedStripFigure />
+				<CaseAnimation
+					name="pinned"
+					caption="Animation of Figure 2: the fixed solver applies [j] from the stuck state. The moving cube (purple) is the rightmost cube of the strip: it passes just outside the box at y = −1 and joins the left end of the row. The pinned cube (red) never moves."
+				/>
+				<GatherFigure />
+				<CaseAnimation
+					name="gather"
+					caption="Animation of Figure 3: the whole [h] operation. Cubes of L (amber) are gathered around c (red), c moves to the new e, and the head of the clearing pillar drops into c&apos;s old cell. The moving cube is purple. The paper moves cubes via z = −1; our solver uses a shortest legal path, which here takes c just outside the box at y = 3."
+				/>
 				<p>
 					A third failure was in boxes that are only one cube thick. A bridge of two 9-cube legs,
 					3 or 4 cubes wide, made the solver stop after its first pillar shove. The second leg
 					needs a long pillar shove <Op>[e]</Op>, and the paper&apos;s zipper for that needs a
 					free column on a third side of the pillar. In this case, the possible helper column is outside the box, where the in-place rule allows
-					only one cube, or is occupied by the other leg. When our solver cannot place the Figure 3
-					zipper within the in-place rules, it tries the short shove. The accepted sequence is legal
-					and lowers Π, and can take quadratically many moves in the pillar&apos;s height (Section 7).
+					only one cube, or is occupied by the other leg. When our solver cannot place the paper&apos;s Figure 3 zipper within the in-place rules, it tries the short shove. The accepted sequence is legal
+					and lowers Π, and can take quadratically many moves in the pillar&apos;s height (Figure 4 and Section 7).
 				</p>
+				<ThinBridgeFigure />
+				<CaseAnimation
+					name="thin"
+					caption="Animation of Figure 4: the short shove that replaces the zipper. The 9-cube leg (amber) is rebuilt one column to the left, one cube at a time (the moving cube is purple), inside the one-cube-thick box."
+				/>
 				<p>
 					Finally, the solvers&apos; tie-breaking depended on the order in which the cells happened
 					to be stored. After stepping through a solution and back, a hint could report 124 moves
@@ -474,7 +490,7 @@ export default function Report() {
 				</div>
 				<p>
 					The table summarizes development stress tests. The exact scripts, seeds, and tested revisions
-					for those batches are unavailable in the repository. To reproduce the checked-in tests, use
+					for those batches are unavailable in the repository. To reproduce the checked-in tests, use{" "}
 					<code>npm ci</code> and <code>npm test</code> from <code>sliding-cubes/</code> at the{" "}
 					<a href={REVIEWED_REVISION} className="text-sky-700 hover:underline dark:text-sky-400">
 						verified solver revision
@@ -493,7 +509,7 @@ export default function Report() {
 			<Section id="deviations" title="7. Deviations from the papers">
 				<p>Our implementation goes beyond the papers in these places:</p>
 				<ul className="list-disc pl-6">
-					<li>Moving one chain onto another in 2D (the paper leaves it open; see Section 3).</li>
+					<li>Moving one chain onto another in 2D (the paper leaves it open; see Section 3 and Figure 5).</li>
 					<li>
 						For 3D hints from the middle of a game, a cube left outside the box is first brought
 						back in (the solver labels this step &ldquo;not in the paper&rdquo;). The paper only starts from configurations inside the box, and does not
@@ -513,6 +529,11 @@ export default function Report() {
 						the gathered cubes when L runs out.
 					</li>
 				</ul>
+				<ChainRelocationFigure />
+				<CaseAnimation
+					name="chain"
+					caption="Animation of Figure 5: a chain of four squares moves one row up (each square in turn, starting with the west end), then one column right (the west end is carried over the top)."
+				/>
 			</Section>
 
 			<Section id="conclusion" title="8. Conclusion and future work">
