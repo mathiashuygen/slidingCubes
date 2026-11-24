@@ -10,6 +10,8 @@ export const metadata: Metadata = {
 
 const GITHUB = "https://github.com/mathiashuygen/slidingCubes";
 
+const REVIEWED_REVISION = `${GITHUB}/commit/a313ad47b47bec07527e23cd22962cd87f8de391`;
+
 const sections = [
 	["introduction", "1. Introduction"],
 	["model", "2. The sliding model"],
@@ -196,7 +198,7 @@ export default function Report() {
 				<p>
 					We studied this question in the sliding square model (2D) and the sliding cube model (3D),
 					and built a browser application around it. Players move squares and cubes themselves, and
-					two algorithms from the literature solve every level, step by step:
+					both solvers reach the required goal on all 20 curated levels. They are based on these two algorithms:
 				</p>
 				<ul className="list-disc pl-6">
 					<li>
@@ -278,10 +280,12 @@ export default function Report() {
 					</li>
 				</ul>
 				<p>
-					The measure Φ = <em>q</em> − <em>y</em> (the number of modules inside maximal cycles minus
+					The measure Φ = <em>q</em> − <em>y</em> (the number of distinct modules on or inside at least one maximal cycle minus
 					the number of maximal cycles) strictly increases in every step 2.B, and every step 1.B adds
-					an edge, so each iteration ends after fewer than 2<em>n</em> steps of type 1.B or 2.B. The whole transformation
-					takes fewer than 2<em>n</em>³ moves.
+					an edge, so each iteration ends after fewer than 2<em>n</em> steps of type 1.B or 2.B.
+					Dumitrescu and Pach bound one shape-to-chain conversion by fewer than 2<em>n</em>³ moves.
+					Our solver performs two such conversions and translates one chain to the other&apos;s position.
+					The translation cost depends on the distance between the chains.
 				</p>
 				<H3>Our implementation</H3>
 				<p>
@@ -292,6 +296,11 @@ export default function Report() {
 					paper says moving a chain to another position is easy but does not give the moves, so we
 					designed them: the chain shifts one row at a time (squares move into the next row from the
 					far end) and one column at a time (the end square is carried over the top).
+				</p>
+				<p>
+					The solver computes physical holes and cycle regions separately. Diagonally touching squares
+					can seal a physical hole, while their centers share no edge in the adjacency graph. A 65-square
+					regression test checks that this distinction leads the solver to select Step 2.B.
 				</p>
 			</Section>
 
@@ -304,11 +313,11 @@ export default function Report() {
 				</p>
 				<p>
 					where the weight w<sub>c</sub> is 17 for cubes above z = 1, 16 at z = 1, and on the floor
-					3, 2 or 1 depending on whether y is above 1, equal to 1 or 0. Each operation lowers Π by
-					an amount proportional to the moves it uses, so the total number of moves is O(S), with S
-					the sum of all cube coordinates. The paper shows a path of cubes from the origin to the
-					opposite corner of a box for which every algorithm needs that many moves, so the bound is
-					optimal in the worst case.
+					3, 2 or 1 depending on whether y is above 1, equal to 1 or 0. In the paper&apos;s construction, the move count of each operation is bounded by a constant
+					times its potential decrease. This gives an O(S) bound on elementary moves, where S is the sum
+					of all cube coordinates measured from the minimum corner of the original box. The paper gives
+					a matching worst-case lower bound. The same upper bound has yet to be established for our
+					implementation, which uses the alternative move sequences described in Section 7.
 				</p>
 				<H3>Operations</H3>
 				<ul className="list-disc pl-6">
@@ -340,9 +349,9 @@ export default function Report() {
 				</ul>
 				<p>
 					The paper proves that when no operation applies, the configuration is finished (Theorem
-					1). Our solver follows that structure directly: it tries the operations in order, replays
-					the first one that applies, checks that Π went down, and repeats until the configuration
-					is finished.
+					1). Our solver tries operations in order, checks the legality of every accepted move sequence,
+					and requires each accepted operation to decrease Π. It stops when it has compacted the shape
+					or reports an error if its search finds no applicable operation.
 				</p>
 			</Section>
 
@@ -409,12 +418,10 @@ export default function Report() {
 					A third failure was in boxes that are only one cube thick. A bridge of two 9-cube legs,
 					3 or 4 cubes wide, made the solver stop after its first pillar shove. The second leg
 					needs a long pillar shove <Op>[e]</Op>, and the paper&apos;s zipper for that needs a
-					free column on a third side of the pillar. The paper only asks that this side is empty,
-					but here it lies outside the box (where the in-place rule allows only one cube) or is the
-					other leg of the bridge, so the zipper cannot be built. This is a gap in the paper for
-					thin boxes rather than a bug in our code. Our solver now falls back to the short pillar
-					shove, which is legal and lowers Π but needs quadratically many moves in the
-					pillar&apos;s height; the step is labelled &ldquo;not in the paper&rdquo; (Section 7).
+					free column on a third side of the pillar. In this case, the possible helper column is outside the box, where the in-place rule allows
+					only one cube, or is occupied by the other leg. When our solver cannot place the Figure 3
+					zipper within the in-place rules, it tries the short shove. The accepted sequence is legal
+					and lowers Π, and can take quadratically many moves in the pillar&apos;s height (Section 7).
 				</p>
 				<p>
 					Finally, the solvers&apos; tie-breaking depended on the order in which the cells happened
@@ -438,7 +445,7 @@ export default function Report() {
 								<td className="py-1 pr-4">
 									984 shapes up to 30 cubes, incl. flat and one-cube-thick ones
 								</td>
-								<td className="py-1">all compacted; at most 0.83·S moves</td>
+								<td className="py-1">984/984 compacted. Maximum observed in this batch: 0.83·S moves.</td>
 							</tr>
 							<tr>
 								<td className="py-1 pr-4">3D</td>
@@ -466,7 +473,17 @@ export default function Report() {
 					</table>
 				</div>
 				<p>
-					The 3D solver is close to optimal on small levels: on &ldquo;Tower&rdquo; it uses 11 moves
+					The table summarizes development stress tests. The exact scripts, seeds, and tested revisions
+					for those batches are unavailable in the repository. To reproduce the checked-in tests, use
+					<code>npm ci</code> and <code>npm test</code> from <code>sliding-cubes/</code> at the{" "}
+					<a href={REVIEWED_REVISION} className="text-sky-700 hover:underline dark:text-sky-400">
+						verified solver revision
+					</a>.
+					Separately, the 20-cube bridge with width four and columns nine cubes high compacted in
+					123 legal moves with S = 118 (approximately 1.04·S).
+				</p>
+				<p>
+					On &ldquo;Tower&rdquo; the 3D solver uses 11 moves
 					where the shortest solution takes 10. The 2D algorithm was designed to prove that a
 					solution exists, not to find a short one, and it shows: &ldquo;Snake&rdquo; takes 71 moves
 					against a shortest 8, and &ldquo;Staircase&rdquo; 92 against 14.
@@ -485,11 +502,9 @@ export default function Report() {
 					</li>
 					<li>
 						A box that is only one cube thick is solved as a 2D instance in its vertical plane.
-						There, a pillar of 9 or more cubes against the box wall can have no free column for the
-						zipper: the paper only asks for an empty side, but here that side is outside the box,
-						where the in-place rule allows one cube. We then use the short shove, which is legal and
-						lowers Π but takes quadratically many moves in the pillar&apos;s height (labelled
-						&ldquo;not in the paper&rdquo;).
+						When the solver cannot construct the zipper for a long pillar, it tries the short shove.
+						This handles cases such as a pillar at a thin-box wall and can take quadratically many moves
+						in the pillar&apos;s height.
 					</li>
 					<li>
 						Where the paper fixes exact cells for helper cubes, we search for a placement and keep
@@ -505,12 +520,13 @@ export default function Report() {
 					We implemented both algorithms on one shared rules engine, and every solution they produce
 					is verified move by move. Implementing the 3D algorithm showed how much detail its
 					operations hide: the precise order of the cases, the choice of helper cells, and the
-					pinned-cube recursion all had to be made concrete, and stress testing found two cases our
+					pinned-cube recursion all had to be made concrete, and stress testing found several cases our
 					first implementation missed.
 				</p>
 				<p>
 					Open points: whether compaction in the original box is always possible from any mid-game
-					state, faster planning for very large configurations, and comparing the 2D solver with an algorithm designed to use fewer moves.
+					state, establishing a move bound for our 3D implementation, faster planning for very large
+					configurations, and comparing the 2D solver with an algorithm designed to use fewer moves.
 				</p>
 			</Section>
 
@@ -520,8 +536,8 @@ export default function Report() {
 						[1] I. Kostitsyna, T. Ophelders, I. Parada, T. Peters, W. Sonke and B. Speckmann.
 						Optimal in-place compaction of sliding cubes. <em>Journal of Computational Geometry</em>{" "}
 						16(1):800–820, 2025.{" "}
-						<a href="https://jocg.org" className="text-sky-700 hover:underline dark:text-sky-400">
-							jocg.org
+						<a href="https://doi.org/10.20382/jocgv16i1a22" className="text-sky-700 hover:underline dark:text-sky-400">
+							doi:10.20382/jocgv16i1a22
 						</a>
 					</li>
 					<li id="ref-2" className="scroll-mt-6">
