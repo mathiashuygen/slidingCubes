@@ -93,14 +93,13 @@ describe("Peters et al. 3D compaction", () => {
 		expect(phases.some((p) => p.name.startsWith("[e] long zipper shove"))).toBe(true);
 	});
 
-	it("moves the left endpoint and lowers the one-cube clearing pillar in Figure 7", () => {
-		const start = new Configuration([[5, 1, 0], [5, 0, 0], [4, 1, 0], [3, 1, 0], [2, 1, 0], [1, 1, 0], [0, 1, 0]]);
+	it("applies [j] to a floor strip in the bottom-layer phase", () => {
+		// The strip (4,0)–(5,0) hangs from (4,1); its rightmost cube moves to the left end of the floor row.
+		const start = new Configuration([[1, 0, 0], [2, 0, 0], [2, 1, 0], [3, 1, 0], [4, 0, 0], [4, 1, 0], [5, 0, 0]]);
 		const { phases, moves } = check(start);
-		const strip = phases.find((p) => p.name.startsWith("[j]"))!;
-		const first = moves[strip.start], last = moves[strip.end - 1];
-		expect(first.from[1]).toBe(0);
-		expect(last.from[1]).toBe(1);
-		expect(last.to).toEqual(first.from);
+		expect(phases[0].name).toMatch(/^\[j\] clear a low strip/);
+		expect(moves[0].from).toEqual([5, 0, 0]);
+		expect(moves[phases[0].end - 1].to).toEqual([3, 0, 0]);
 	});
 
 	it("shifts a big floor strip while keeping its attachment to the bridge fixed", () => {
@@ -132,6 +131,17 @@ describe("Peters et al. 3D compaction", () => {
 	it("completes a planar unlock when the sideways step offsets the height reduction", () => {
 		check(new Configuration([[0, 0, 0], [1, 0, 0], [2, 0, 0], [2, 1, 0], [2, 2, 0],
 			[2, 3, 0], [1, 3, 0], [0, 3, 0], [0, 4, 0]]));
+	});
+
+	it("falls back to the short shove when a long pillar at the wall of a thin box has no room for the zipper", () => {
+		// One cube thick: the zipper's third column is outside the box or is the other leg.
+		for (const [width, height] of [[2, 8], [3, 8], [3, 12]]) {
+			const cells: Cell[] = [];
+			for (let z = 0; z <= height; z++) cells.push([0, 0, z], [width, 0, z]);
+			for (let x = 1; x < width; x++) cells.push([x, 0, height]);
+			const { phases } = check(new Configuration(cells));
+			expect(phases.some((p) => p.name.includes("no room for the zipper"))).toBe(true);
+		}
 	});
 
 	it("replays a translated bridge under the same in-place constraints", () => {

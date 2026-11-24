@@ -386,7 +386,7 @@ export default function Report() {
 				<p>
 					Because every solver move is checked by the rules engine, a bug in a solver shows up as a
 					failed replay or as a state where no operation applies, never as a silently illegal
-					solution. The test suite (131 tests) replays the curated levels, seeded random shapes and
+					solution. The test suite (133 tests) replays the curated levels, seeded random shapes and
 					hand-built cases for the more involved operations ([e], [h], [i] and [j]), and checks that every level&apos;s stored move count
 					still matches the solver.
 				</p>
@@ -405,7 +405,24 @@ export default function Report() {
 						solver now chooses e again by the paper&apos;s rule.
 					</li>
 				</ul>
-				<p>After these fixes:</p>
+				<p>
+					A third failure was in boxes that are only one cube thick. A bridge of two 9-cube legs,
+					3 or 4 cubes wide, made the solver stop after its first pillar shove. The second leg
+					needs a long pillar shove <Op>[e]</Op>, and the paper&apos;s zipper for that needs a
+					free column on a third side of the pillar. The paper only asks that this side is empty,
+					but here it lies outside the box (where the in-place rule allows only one cube) or is the
+					other leg of the bridge, so the zipper cannot be built. This is a gap in the paper for
+					thin boxes rather than a bug in our code. Our solver now falls back to the short pillar
+					shove, which is legal and lowers Π but needs quadratically many moves in the
+					pillar&apos;s height; the step is labelled &ldquo;not in the paper&rdquo; (Section 7).
+				</p>
+				<p>
+					Finally, the solvers&apos; tie-breaking depended on the order in which the cells happened
+					to be stored. After stepping through a solution and back, a hint could report 124 moves
+					for a position the solver had just solved in 123. Both solvers now sort the cells first,
+					so the same position always gets the same solution.
+				</p>
+				<p>After all fixes:</p>
 				<div className="overflow-x-auto">
 					<table className="w-full text-left text-sm">
 						<thead className="border-b border-zinc-300 dark:border-zinc-700">
@@ -421,12 +438,24 @@ export default function Report() {
 								<td className="py-1 pr-4">
 									984 shapes up to 30 cubes, incl. flat and one-cube-thick ones
 								</td>
-								<td className="py-1">all compacted; at most 0.84·S moves</td>
+								<td className="py-1">all compacted; at most 0.83·S moves</td>
 							</tr>
 							<tr>
 								<td className="py-1 pr-4">3D</td>
 								<td className="py-1 pr-4">765 bridges, floor rows and random shapes</td>
 								<td className="py-1">all compacted</td>
+							</tr>
+							<tr>
+								<td className="py-1 pr-4">3D</td>
+								<td className="py-1 pr-4">
+									930 one-cube-thick bridges (some on floor pieces) and random shapes
+								</td>
+								<td className="py-1">all compacted</td>
+							</tr>
+							<tr>
+								<td className="py-1 pr-4">Both</td>
+								<td className="py-1 pr-4">200 generated levels and 400 hints from random mid-game positions</td>
+								<td className="py-1">all solved; every hint verified</td>
 							</tr>
 							<tr>
 								<td className="py-1 pr-4">2D</td>
@@ -456,6 +485,11 @@ export default function Report() {
 					</li>
 					<li>
 						A box that is only one cube thick is solved as a 2D instance in its vertical plane.
+						There, a pillar of 9 or more cubes against the box wall can have no free column for the
+						zipper: the paper only asks for an empty side, but here that side is outside the box,
+						where the in-place rule allows one cube. We then use the short shove, which is legal and
+						lowers Π but takes quadratically many moves in the pillar&apos;s height (labelled
+						&ldquo;not in the paper&rdquo;).
 					</li>
 					<li>
 						Where the paper fixes exact cells for helper cubes, we search for a placement and keep

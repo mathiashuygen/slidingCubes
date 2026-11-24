@@ -3,7 +3,7 @@ import { type Cell, applyMove, checkMove, legalMoves } from "@/engine";
 import { initGame } from "@/game/gameState";
 import { generateLevel2D, generateLevel3D, seededRandom } from "@/game/generator";
 import { type Level, levels2D, levels3D } from "@/game/levels";
-import { hintFor } from "./index";
+import { hintFor, solveLevel } from "./index";
 
 /** Plays `steps` random legal moves from the level's start, staying inside the level's rules. */
 function midGame(level: Level, steps: number, rand: () => number): Cell[] {
@@ -57,6 +57,20 @@ describe("hints", () => {
 		const rand = seededRandom(4);
 		for (const level of [...levels3D, ...[0, 1, 2].map((seed) => generateLevel3D({ size: 10, seed }))]) {
 			expectLegalHint(level, midGame(level, 10, rand));
+		}
+	});
+});
+
+describe("solver determinism", () => {
+	it("gives the same solution and hint count however the cells are ordered", () => {
+		const rand = seededRandom(5);
+		for (const level of [levels2D[8], levels3D[6]]) {
+			const solution = solveLevel(level).moves;
+			const shuffled = [...level.start].sort(() => rand() - 0.5);
+			const reordered = { ...level, start: shuffled } as Level;
+			expect(solveLevel(reordered).moves).toEqual(solution);
+			// A hint from the start reruns the solver on the board's own cell order.
+			if (level.start.length > 7) expect(hintFor(level, shuffled.map((c) => [c[0], c[1], c[2] ?? 0] as Cell)).remaining).toBe(solution.length);
 		}
 	});
 });

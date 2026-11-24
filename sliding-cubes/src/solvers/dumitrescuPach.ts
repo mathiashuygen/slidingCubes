@@ -10,7 +10,7 @@ import {
 	parseCellKey,
 	rules2D,
 } from "@/engine";
-import { MoveRecorder, type SolverOutput, SolverError, findPath, modulePath } from "./common";
+import { MoveRecorder, type SolverOutput, SolverError, canonical, findPath, modulePath } from "./common";
 
 /**
  * 2D reconfiguration after Dumitrescu and Pach, "Pushing Squares Around"
@@ -28,7 +28,7 @@ export function solve2D(start: Configuration, target: Configuration): SolverOutp
 	const toChainA = toChain(start);
 	const toChainB = toChain(target);
 
-	const recorder = new MoveRecorder(start.clone(), rules2D);
+	const recorder = new MoveRecorder(canonical(start), rules2D);
 	for (const phase of toChainA.output.phases) {
 		recorder.setPhase(`Start → chain · ${phase.name}`);
 		recorder.applyAll(toChainA.output.moves.slice(phase.start, phase.end));
@@ -171,7 +171,7 @@ function potential(config: Configuration): number {
  * square eastwards per iteration from a base s in the rightmost column.
  */
 export function toChain(start: Configuration): { output: SolverOutput; chain: Chain } {
-	const recorder = new MoveRecorder(start.clone(), rules2D);
+	const recorder = new MoveRecorder(canonical(start), rules2D);
 	const config = recorder.config;
 	const n = config.size;
 	const x0 = Math.max(...config.toArray().map((c) => c[0]));

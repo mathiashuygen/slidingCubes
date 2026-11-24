@@ -1,6 +1,6 @@
 import {
 	type Cell,
-	type Configuration,
+	Configuration,
 	type Move,
 	type Rules,
 	applyMove,
@@ -10,6 +10,15 @@ import {
 	isConnected,
 	localDestinations,
 } from "@/engine";
+
+/**
+ * The same cells in sorted order. The solvers' tie-breaking follows the
+ * iteration order of a configuration, so they start from this copy: the same
+ * position then always gets the same solution, however it was reached.
+ */
+export function canonical(config: Configuration): Configuration {
+	return new Configuration(config.toArray().sort((p, q) => p[0] - q[0] || p[1] - q[1] || p[2] - q[2]));
+}
 
 /** A stretch of the move list that belongs to one step of the algorithm. */
 export interface Phase {

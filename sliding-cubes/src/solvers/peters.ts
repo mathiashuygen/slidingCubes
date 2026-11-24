@@ -14,7 +14,7 @@ import {
 	legalMovesFrom,
 	rules3D,
 } from "@/engine";
-import { MoveRecorder, type SolverOutput, SolverError, findPath, modulePath } from "./common";
+import { MoveRecorder, type SolverOutput, SolverError, canonical, findPath, modulePath } from "./common";
 
 /**
  * 3D compaction after Kostitsyna, Ophelders, Parada, Peters, Sonke and
@@ -31,7 +31,7 @@ export function compact3D(start: Configuration, box: Box = start.boundingBox()):
 	const outside = rules.space.checkStart(start);
 	if (outside) throw new SolverError(outside);
 	const goal = compactedInBox(box);
-	const recorder = new MoveRecorder(start.clone(), rules);
+	const recorder = new MoveRecorder(canonical(start), rules);
 	const frame = verticalFrame(box, rules);
 
 	// A mid-game state (for hints) may have its one cube just outside the box;
@@ -398,13 +398,13 @@ function pillarShove(config: Configuration, frame: Frame, a: number, b: number, 
 	if (sides.some((s) => s.adjacent.length > 1)) return null;
 	const higher = sides.filter((s) => s.adjacent.length && s.adjacent[0].zb > base);
 	const top = Math.min(...higher.map((s) => s.adjacent[0].zb));
+	const height = top - base + 1;
 	const src = (z: number) => frame.toCell(a, b, z);
 	for (const target of higher.filter((s) => s.adjacent[0].zb === top)) {
 		const dst = (z: number) => frame.toCell(target.a, target.b, z);
 		if (!sides.some((s) => s !== target && !config.has(frame.toCell(s.a, s.b, base)))) continue;
-		for (const side of shoveSides(a, b, target, frame)) {
-			if (config.has(frame.toCell(side.a, side.b, base))) continue;
-			const spare = (z: number) => frame.toCell(side.a, side.b, z);
+		// Plays the optional unlock, then `build` from the unlocked state.
+		const attempt = (build: (work: Configuration, goal: Configuration) => Arrangement | null): Move[] | null => {
 			for (const unlock of [false, true]) {
 				const work = config.clone();
 				const moves: Move[] = [];
@@ -414,22 +414,33 @@ function pillarShove(config: Configuration, frame: Frame, a: number, b: number, 
 					applyMove(work, m);
 					moves.push(m);
 				}
-				const goal = shoveGoal(work, src, dst, base, top);
-				const height = top - base + 1;
-				let result: Arrangement | null;
-				if (height < 9) {
-					// Fill the side from above using the lowest available source cube.
-					const destinations = column(frame, target.a, target.b, base, top - 1).reverse();
-					result = place(work, column(frame, a, b, base, top), destinations, frame,
-						(stage) => restore(stage, goal, frame));
-				} else {
-					result = zipper(work, goal, column(frame, a, b, base, base + 4), base + 5, top, src, dst, spare, frame, side.mirrored);
-				}
+				const result = build(work, shoveGoal(work, src, dst, base, top));
 				if (!result) continue;
 				moves.push(...result.moves);
-				if (tryMoves(config, moves, frame)) return { name: `[e] ${height < 9 ? "short pillar shove" : "long zipper shove"}${frame.label}`, moves };
+				if (tryMoves(config, moves, frame)) return moves;
 			}
+			return null;
+		};
+		// Figure 3 [e']: fill the side from above using the lowest available source cube.
+		const short = (work: Configuration, goal: Configuration) => place(work, column(frame, a, b, base, top),
+			column(frame, target.a, target.b, base, top - 1).reverse(), frame, (stage) => restore(stage, goal, frame));
+		if (height < 9) {
+			const moves = attempt(short);
+			if (moves) return { name: `[e] short pillar shove${frame.label}`, moves };
+			continue;
 		}
+		for (const side of shoveSides(a, b, target, frame)) {
+			if (config.has(frame.toCell(side.a, side.b, base))) continue;
+			const spare = (z: number) => frame.toCell(side.a, side.b, z);
+			const moves = attempt((work, goal) =>
+				zipper(work, goal, column(frame, a, b, base, base + 4), base + 5, top, src, dst, spare, frame, side.mirrored));
+			if (moves) return { name: `[e] long zipper shove${frame.label}`, moves };
+		}
+		// The zipper needs a free third column. Against a wall of a one-cube-thick
+		// box that column is outside the box, where the in-place rule allows only
+		// one cube. The short shove still works, with quadratically many moves.
+		const moves = attempt(short);
+		if (moves) return { name: `[e] short pillar shove on a long pillar (not in the paper: no room for the zipper)${frame.label}`, moves };
 	}
 	return null;
 }
