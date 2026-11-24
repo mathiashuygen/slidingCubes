@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { type Cell, checkMove, legalMovesFrom, localDestinations } from "@/engine";
 import { type Feedback, formatMoves, gameReducer, initGame, moduleNoun, parseMoves } from "@/game/gameState";
@@ -215,7 +216,12 @@ export function Playground() {
 
 			<aside className="flex w-full flex-col gap-5 overflow-y-auto border-zinc-200 p-5 lg:w-96 lg:border-l dark:border-zinc-800">
 				<header className="flex flex-col gap-2">
-					<h1 className="text-lg font-semibold">Sliding cubes and squares</h1>
+					<div className="flex items-baseline justify-between gap-2">
+						<h1 className="text-lg font-semibold">Sliding cubes and squares</h1>
+						<Link href="/report" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
+							Report
+						</Link>
+					</div>
 					<div className="flex flex-wrap gap-1.5" role="tablist">
 						{(["tutorial", "2d", "3d"] as const).map((tab) => {
 							const active = tab === "tutorial" ? lesson !== null : lesson === null && mode === tab;
