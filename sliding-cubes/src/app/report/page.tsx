@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 const GITHUB = "https://github.com/mathiashuygen/slidingCubes";
 
-const REVIEWED_REVISION = `${GITHUB}/commit/a313ad47b47bec07527e23cd22962cd87f8de391`;
+const REVIEWED_REVISION = `${GITHUB}/commit/3ca9cd19d198f7badf06d8a24567c9a0449bba4d`;
 
 const sections = [
 	["introduction", "1. Introduction"],
@@ -250,6 +250,12 @@ export default function Report() {
 					cubes stay in the original bounding box, except that at most one cube at a time may be in
 					a cell sharing a face with the box.
 				</p>
+				<p>
+					Many shapes count as finished, and the paper notes that the one its algorithm produces
+					depends on the input. The solver stops at the first finished shape it reaches, which need
+					not be the lowest one: the &ldquo;Zipper&rdquo; level, for example, ends as a staircase of
+					columns 9, 7, 5 and 1 cubes high, although its 23 cubes would fit in three layers.
+				</p>
 			</Section>
 
 			<Section id="2d" title="3. 2D: Dumitrescu and Pach">
@@ -331,7 +337,8 @@ export default function Report() {
 						<Op>[e]</Op> is a <em>pillar shove</em>: all cubes of the pillar except the top one
 						move one column sideways, and the top cube drops to the bottom of the original column.
 						Pillars of 9 or more cubes use the paper&apos;s &ldquo;zipper&rdquo;, a constant number
-						of moves per level, which keeps the cost linear in the height.
+						of moves per level, which keeps the cost linear in the height. The &ldquo;Zipper&rdquo;
+						level in the game shows it: its solution starts with a long zipper shove.
 					</li>
 					<li>
 						<Op>[f]</Op> and <Op>[g]</Op> make any single move that lowers Π and stays in the box,
@@ -384,6 +391,11 @@ export default function Report() {
 					<li>
 						<strong>Solution viewer</strong>: play, pause and step through a solver&apos;s moves,
 						with every step labelled by the step or operation of the paper it belongs to.
+					</li>
+					<li>
+						<strong>3D sandbox</strong>: build your own shape of up to 40 cubes by clicking cube
+						faces, remove cubes as long as the shape stays connected, and let the Peters et al.
+						solver compact it in the normal 3D board.
 					</li>
 				</ul>
 				<p>
