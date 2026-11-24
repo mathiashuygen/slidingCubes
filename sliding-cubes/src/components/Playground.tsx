@@ -3,15 +3,16 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { type Cell, checkMove, legalMovesFrom, localDestinations } from "@/engine";
+import { type Cell, Configuration, checkMove, compactedInBox, isConnected, legalMovesFrom, localDestinations } from "@/engine";
 import { type Feedback, formatMoves, gameReducer, initGame, moduleNoun, parseMoves } from "@/game/gameState";
 import { generateLevel2D, generateLevel3D } from "@/game/generator";
-import { type Level, levelToJson, levels2D, levels3D, parseLevel } from "@/game/levels";
+import { type Level, type Level3D, levelToJson, levels2D, levels3D, parseLevel } from "@/game/levels";
 import { lessons } from "@/game/tutorial";
 import type { Move } from "@/engine";
 import type { Phase } from "@/solvers";
 import { shortestSolution } from "@/solvers/bfs";
 import { Board2D } from "./Board2D";
+import type { EditTool } from "./SandboxEditor3D";
 import { useSolver } from "./useSolver";
 
 // Three.js needs the browser, so the 3D board is never prerendered.
@@ -20,7 +21,18 @@ const Board3D = dynamic(() => import("./Board3D"), {
 	loading: () => <p className="text-sm text-zinc-500">Loading 3D view…</p>,
 });
 
+const SandboxEditor3D = dynamic(() => import("./SandboxEditor3D"), {
+	ssr: false,
+	loading: () => <p className="text-sm text-zinc-500">Loading 3D editor…</p>,
+});
+
 const PLAY_INTERVAL_MS = 450;
+
+/** The solver plans in the browser; beyond this many cubes it can take a while. */
+const SANDBOX_MAX_CUBES = 40;
+const SANDBOX_START: Cell[] = [[0, 0, 0], [0, 0, 1], [0, 0, 2], [1, 0, 2]];
+
+type Sandbox = { cells: Cell[]; editing: boolean; tool: EditTool; message: string | null };
 
 const button =
 	"rounded-md border border-zinc-300 px-2.5 py-1 text-sm hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:hover:bg-zinc-800";
@@ -56,6 +68,8 @@ export function Playground() {
 	const [lessonIndex, setLessonIndex] = useState<number | null>(null);
 	const lesson = lessonIndex === null ? null : lessons[lessonIndex];
 	const [hinting, setHinting] = useState(false);
+	// The 3D sandbox: null outside it, otherwise the shape being built.
+	const [sandbox, setSandbox] = useState<Sandbox | null>(null);
 
 	const { config, moves, cursor, selected, rules, level } = state;
 	const stateRef = useRef(state);
@@ -128,8 +142,7 @@ export function Playground() {
 		setPlaying(false);
 	}
 
-	async function runPaperSolver() {
-		const forLevel = level;
+	async function runPaperSolver(forLevel: Level = level) {
 		setSolverRun({ status: "running" });
 		const response = await solve(forLevel);
 		// Ignore results for a level the player has since left.
@@ -173,6 +186,62 @@ export function Playground() {
 		else void runPaperSolver();
 	}
 
+	function openSandbox(cells: Cell[]) {
+		cancel();
+		setLessonIndex(null);
+		setPlaying(false);
+		setSolverRun({ status: "idle" });
+		setSandbox({ cells, editing: true, tool: "add", message: null });
+	}
+
+	function editSandbox(change: Partial<Sandbox>) {
+		setSandbox((sb) => (sb ? { ...sb, message: null, ...change } : sb));
+	}
+
+	function addCube(cell: Cell) {
+		if (!sandbox) return;
+		if (sandbox.cells.length >= SANDBOX_MAX_CUBES) {
+			editSandbox({ message: `The sandbox holds at most ${SANDBOX_MAX_CUBES} cubes.` });
+			return;
+		}
+		editSandbox({ cells: [...sandbox.cells, cell] });
+	}
+
+	function removeCube(cell: Cell) {
+		if (!sandbox) return;
+		if (sandbox.cells.length === 1) {
+			editSandbox({ message: "Keep at least one cube." });
+			return;
+		}
+		if (!isConnected(new Configuration(sandbox.cells), cell)) {
+			editSandbox({ message: "That cube holds the shape together; removing it would split the shape." });
+			return;
+		}
+		editSandbox({ cells: sandbox.cells.filter((c) => c[0] !== cell[0] || c[1] !== cell[1] || c[2] !== cell[2]) });
+	}
+
+	/** Turns the shape into a level, with the box as its bounding box, and runs the paper's solver on it. */
+	function solveSandbox() {
+		if (!sandbox) return;
+		const config = new Configuration(sandbox.cells);
+		const box = config.boundingBox();
+		if (compactedInBox(box).isReached(config)) {
+			editSandbox({ message: "This shape is already compact. Add cubes away from the corner of its box." });
+			return;
+		}
+		const start = sandbox.cells.map((c): [number, number, number] => [c[0] - box.min[0], c[1] - box.min[1], c[2] - box.min[2]]);
+		const next: Level3D = {
+			mode: "3d",
+			id: `sandbox-${start.map((c) => c.join(",")).sort().join(";")}`,
+			name: "Your shape",
+			description: `${start.length} cubes you built in the sandbox.`,
+			start,
+		};
+		setSandbox({ ...sandbox, editing: false, message: null });
+		loadLevel(next);
+		void runPaperSolver(next);
+	}
+
 	function onCellClick(cell: Cell) {
 		setPlaying(false);
 		dispatch({ type: "click", cell });
@@ -183,7 +252,14 @@ export function Playground() {
 	return (
 		<div className="flex min-h-screen flex-col lg:h-screen lg:flex-row">
 			<main className="flex h-[60vh] flex-1 items-center justify-center p-4 lg:h-auto">
-				{mode === "2d" ? (
+				{sandbox?.editing ? (
+					<SandboxEditor3D
+						cells={sandbox.cells}
+						tool={sandbox.tool}
+						onAdd={addCube}
+						onRemove={removeCube}
+					/>
+				) : mode === "2d" ? (
 					<Board2D
 						config={config}
 						start={state.start}
@@ -223,8 +299,9 @@ export function Playground() {
 						</Link>
 					</div>
 					<div className="flex flex-wrap gap-1.5" role="tablist">
-						{(["tutorial", "2d", "3d"] as const).map((tab) => {
-							const active = tab === "tutorial" ? lesson !== null : lesson === null && mode === tab;
+						{(["tutorial", "2d", "3d", "sandbox"] as const).map((tab) => {
+							const active =
+								tab === "tutorial" ? lesson !== null : tab === "sandbox" ? sandbox !== null : lesson === null && sandbox === null && mode === tab;
 							return (
 								<button
 									key={tab}
@@ -233,6 +310,8 @@ export function Playground() {
 									className={`${button} ${active ? "bg-zinc-900 text-white hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100" : ""}`}
 									onClick={() => {
 										if (active) return;
+										if (tab === "sandbox") return openSandbox(SANDBOX_START);
+										setSandbox(null);
 										if (tab === "tutorial") openLesson(0);
 										else {
 											setLessonIndex(null);
@@ -240,19 +319,47 @@ export function Playground() {
 										}
 									}}
 								>
-									{tab === "tutorial" ? "Tutorial" : tab === "2d" ? "2D squares" : "3D cubes"}
+									{tab === "tutorial" ? "Tutorial" : tab === "2d" ? "2D squares" : tab === "3d" ? "3D cubes" : "3D sandbox"}
 								</button>
 							);
 						})}
 					</div>
 					<p className="text-sm text-zinc-500">
-						{mode === "2d"
+						{sandbox?.editing
+							? "Build your own shape. Drag to orbit, scroll to zoom. Click a face of a cube to put a new cube against it, or switch to Remove and click a cube."
+							: mode === "2d"
 							? "Click a square, then one of its highlighted destinations. Match the target shape."
 							: "Drag to orbit, scroll to zoom. Click a cube, then a destination. Pack the cubes into the green corner of the box (the origin), leaving no gaps towards it."}
 					</p>
 				</header>
 
-				{lesson && lessonIndex !== null ? (
+				{sandbox?.editing ? (
+					<SandboxPanel
+						sandbox={sandbox}
+						current={mode === "3d" ? level : null}
+						onTool={(tool) => editSandbox({ tool })}
+						onReset={(cells) => editSandbox({ cells })}
+						onSolve={solveSandbox}
+					/>
+				) : (
+				<>
+				{sandbox ? (
+					<section className="flex flex-col gap-2">
+						<span className="text-sm font-medium">Your shape</span>
+						<p className="text-sm text-zinc-500">
+							{level.start.length} cubes from the sandbox. The paper&apos;s solver compacts them inside their bounding box; step
+							through its moves below.
+						</p>
+						<div className="flex gap-1.5">
+							<button className={button} onClick={() => openSandbox(level.start.map((c) => [c[0], c[1], c[2] ?? 0] as Cell))}>
+								Edit shape
+							</button>
+							<button className={button} onClick={() => openSandbox(SANDBOX_START)}>
+								New shape
+							</button>
+						</div>
+					</section>
+				) : lesson && lessonIndex !== null ? (
 					<section className="flex flex-col gap-2 rounded-md border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/40">
 						<span className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
 							Lesson {lessonIndex + 1} of {lessons.length}
@@ -466,6 +573,8 @@ export function Playground() {
 						Loading replays the list through the rules engine from the level start and stops at the first illegal move.
 					</p>
 				</section>
+				</>
+				)}
 			</aside>
 		</div>
 	);
@@ -556,6 +665,63 @@ const randomSeed = () => Math.floor(Math.random() * 100_000);
 
 /** An emptied number input reports NaN; show it as empty rather than "NaN". */
 const inputValue = (n: number) => (Number.isNaN(n) ? "" : n);
+
+function SandboxPanel({
+	sandbox,
+	current,
+	onTool,
+	onReset,
+	onSolve,
+}: {
+	sandbox: Sandbox;
+	current: Level | null;
+	onTool: (tool: EditTool) => void;
+	onReset: (cells: Cell[]) => void;
+	onSolve: () => void;
+}) {
+	const config = new Configuration(sandbox.cells);
+	const box = config.boundingBox();
+	const size = [0, 1, 2].map((i) => box.max[i] - box.min[i] + 1).join(" × ");
+	const compact = compactedInBox(box).isReached(config);
+	return (
+		<section className="flex flex-col gap-3">
+			<div className="flex flex-col gap-1.5">
+				<span className="text-sm font-medium">Tool</span>
+				<div className="flex gap-1.5" role="radiogroup" aria-label="Tool">
+					{(["add", "remove"] as const).map((tool) => (
+						<button
+							key={tool}
+							role="radio"
+							aria-checked={sandbox.tool === tool}
+							className={`${button} ${sandbox.tool === tool ? "bg-zinc-900 text-white hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100" : ""}`}
+							onClick={() => onTool(tool)}
+						>
+							{tool === "add" ? "Add cubes" : "Remove cubes"}
+						</button>
+					))}
+				</div>
+			</div>
+			<p className="text-sm text-zinc-500">
+				{sandbox.cells.length} of at most {SANDBOX_MAX_CUBES} cubes · bounding box {size}.{" "}
+				{compact ? "The shape is already compact." : "The solver compacts the cubes into the corner of this box."}
+			</p>
+			{sandbox.message && <p className={`rounded-md border px-3 py-2 text-sm ${feedbackStyle.error}`}>{sandbox.message}</p>}
+			<div className="flex flex-wrap gap-1.5">
+				<button className={`${button} font-medium`} onClick={onSolve} disabled={compact}>
+					Solve with Peters et al.
+				</button>
+				<button className={button} onClick={() => onReset([[0, 0, 0]])}>
+					Clear
+				</button>
+				{current && current.mode === "3d" && !current.id.startsWith("sandbox-") && (
+					<button className={button} onClick={() => onReset(current.start.map((c) => [c[0], c[1], c[2]] as Cell))}>
+						Copy level &ldquo;{current.name}&rdquo;
+					</button>
+				)}
+			</div>
+		</section>
+	);
+}
 
 function RandomLevelForm({ mode, onGenerate }: { mode: Level["mode"]; onGenerate: (level: Level) => void }) {
 	const difficulties = DIFFICULTIES[mode];

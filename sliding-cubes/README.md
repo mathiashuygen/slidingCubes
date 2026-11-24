@@ -60,8 +60,9 @@ It builds the image, starts the dev server and serves it at <http://localhost:30
 ## What is in the app
 
 - **Tutorial:** nine short lessons: side/face adjacency, slides, convex transitions, blocked corners, squares that hold the others together, holes, 3D compaction and the in-place box rule. Each highlights the relevant 2×2 square.
-- **Curated levels:** 11 in 2D and 9 in 3D, ordered by size, from `src/game/levels.json`.
+- **Curated levels:** 11 in 2D and 10 in 3D, ordered by size, from `src/game/levels.json`.
 - **Random levels:** seeded generator for both modes, with a verified reference solution.
+- **3D sandbox:** build your own shape of up to 40 cubes (click a face to add a cube, or remove cubes without splitting the shape), then let the Peters et al. solver compact it and step through its moves.
 - **Play:** click a module to see its legal destinations (slide or convex transition); illegal clicks explain why. Undo/redo, reset, move counter, score against the reference.
 - **Hints:** the first move of a complete continuation, verified by replay before it is shown (see below).
 - **Solution viewer:** run the paper solver (in a Web Worker), play/step through its moves, and jump between the algorithm's steps.
