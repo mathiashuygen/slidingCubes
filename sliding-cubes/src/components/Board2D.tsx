@@ -19,7 +19,7 @@ interface Board2DProps {
 	hint?: Move | null;
 	/** Cells to outline together, e.g. the 2×2 square a tutorial lesson is about. */
 	focus?: Cell[];
-	onCellClick: (cell: Cell) => void;
+	onCellClick?: (cell: Cell) => void;
 }
 
 /**
@@ -58,15 +58,15 @@ export function Board2D({ config, start, target, selected, destinations, feedbac
 		<svg
 			ref={svgRef}
 			viewBox={`${view.minX} ${-view.maxY - 1} ${view.width} ${view.height}`}
-			className="h-full w-full cursor-pointer touch-manipulation select-none"
-			onClick={(e) => {
+			className={onCellClick ? "h-full w-full cursor-pointer touch-manipulation select-none" : "h-full w-full select-none"}
+			onClick={onCellClick && ((e) => {
 				const cell = cellAt(e);
 				if (cell) onCellClick(cell);
-			}}
-			onPointerMove={(e) => {
+			})}
+			onPointerMove={onCellClick && ((e) => {
 				const cell = cellAt(e);
 				if (!cell || !hovered || !equals(cell, hovered)) setHovered(cell);
-			}}
+			})}
 			onPointerLeave={() => setHovered(null)}
 		>
 			<g className="stroke-zinc-200 dark:stroke-zinc-800" strokeWidth={0.02}>

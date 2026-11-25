@@ -124,9 +124,9 @@ export default function Report() {
 
 			<Section id="model" title="2. The sliding model">
 				<p>
-					A configuration is a set of <Math tex="n" /> grid cells, each occupied by one module: squares in
+					A configuration is a set of <Math tex="n" /> grid cells, each occupied by one module: squares in{" "}
 					<Math tex="\mathbb{Z}^2" /> or cubes in <Math tex="\mathbb{Z}^3" />. Two modules are adjacent when they share a side (2D) or a face (3D);
-					touching at a corner or edge does not count. One module moves at a time, inside a <Math tex="2\times2" />
+					touching at a corner or edge does not count. One module moves at a time, inside a <Math tex="2\times2" />{" "}
 					square of some coordinate plane:
 				</p>
 				<ul className="list-disc pl-6">

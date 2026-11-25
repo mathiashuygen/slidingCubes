@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ReactNode, useMemo, useState } from "react";
-import { type Box, type Cell, Configuration, type Move, checkMove, rules2D, rules3D } from "@/engine";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type Box, type Cell, Configuration, type Move, applyMove, checkMove, rules2D, rules3D } from "@/engine";
+import { Board2D } from "@/components/Board2D";
 import { MoveRecorder } from "@/solvers/common";
 import { relocateChain } from "@/solvers/dumitrescuPach";
 import { firstCompactionOperation } from "@/solvers/peters";
@@ -78,32 +79,12 @@ export function CaseAnimation({ name, caption }: { name: keyof typeof CASES; cap
 			return e as Error;
 		}
 	}, [name]);
-	const [playing, setPlaying] = useState(true);
-	const [restart, setRestart] = useState(0);
-	const [step, setStep] = useState(0);
-
-	const button = "rounded border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
 	return (
 		<figure className="my-2 flex flex-col gap-2">
 			{data instanceof Error ? (
 				<p className="text-sm text-rose-600">The solver failed on this case: {data.message}</p>
 			) : (
-				<>
-					<MoveScene {...data} playing={playing} restart={restart} onStep={setStep} />
-					<div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-						<button type="button" className={button} onClick={() => setPlaying((p) => !p)}>
-							{playing ? "Pause" : "Play"}
-						</button>
-						<button type="button" className={button} onClick={() => setRestart((r) => r + 1)}>
-							Restart
-						</button>
-						<span className="font-mono">
-							move {Math.min(step + 1, data.moves.length)} / {data.moves.length}
-						</span>
-						<span className="truncate">· {data.operation}</span>
-						<span className="ml-auto">drag to rotate</span>
-					</div>
-				</>
+				<MovePlayer {...data} flat={name === "chain"} />
 			)}
 			<figcaption className="text-sm text-zinc-500">{caption}</figcaption>
 		</figure>
@@ -127,42 +108,41 @@ export function OperationAnimation({ name, label }: { name: OperationDemoName; l
 		caption={`${data.name} · Amber marks the relevant cubes at the start. Purple marks the moving cube. Drag to rotate.`} />;
 }
 
-function MovePlayer({ start, moves, box, groups, label, caption, flat = false }: {
-	start: Cell[]; moves: Move[]; box?: Box; groups: ColorGroup[]; label?: string; caption?: string; flat?: boolean;
+function MovePlayer({ start, moves, box, groups, label, caption, flat = false, stepMs = moves.length > 20 ? 280 : 850 }: {
+	start: Cell[]; moves: Move[]; box?: Box; groups: ColorGroup[]; label?: string; caption?: string; flat?: boolean; stepMs?: number;
 }) {
-	const [playing, setPlaying] = useState(false);
-	const [step, setStep] = useState(0);
-	const [seek, setSeek] = useState<{ step: number }>();
-
-	const last = moves.length;
-	const jump = (next: number) => {
-		setPlaying(false);
-		setStep(next);
-		setSeek({ step: next });
-	};
-	const button = "rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800";
 	return (
 		<div className="mt-2 flex flex-col gap-2">
 			{label && <h5 className="text-sm font-medium">{label}</h5>}
-			<MoveScene start={start} moves={moves} box={box} groups={groups} flat={flat}
-				playing={playing} restart={0} seek={seek} stopAtEnd stepMs={last > 20 ? 280 : 850}
-				onStep={(next) => {
-					setStep(next);
-					if (next === last) setPlaying(false);
-				}} />
-			<div className="flex flex-wrap items-center gap-2 text-xs">
-				<button type="button" className={button} onClick={() => {
-					if (step === last) jump(0);
-					setPlaying(!playing);
-				}}>{playing ? "Pause" : step === last ? "Replay" : "Play"}</button>
-				<button type="button" className={button} onClick={() => jump(0)}>Restart</button>
-				<button type="button" className={button} disabled={step === 0} onClick={() => jump(step - 1)}>Previous move</button>
-				<button type="button" className={button} disabled={step === last} onClick={() => jump(step + 1)}>Next move</button>
-				<output className="tabular-nums">{step} / {last} moves complete</output>
-			</div>
-			<input aria-label="Position in operation" type="range" min={0} max={last} value={step}
-				onChange={(event) => jump(Number(event.currentTarget.value))} />
+			{flat
+				? <SquarePlayback start={start} moves={moves} stepMs={stepMs} />
+				: <MoveScene start={start} moves={moves} box={box} groups={groups} stepMs={stepMs} />}
 			{caption && <p className="text-xs text-zinc-500">{caption}</p>}
+		</div>
+	);
+}
+
+function SquarePlayback({ start, moves, stepMs }: { start: Cell[]; moves: Move[]; stepMs: number }) {
+	const frames = useMemo(() => {
+		const config = new Configuration(start);
+		return [config.clone(), ...moves.map((move) => {
+			applyMove(config, move);
+			return config.clone();
+		})];
+	}, [start, moves]);
+	const [step, setStep] = useState(0);
+	useEffect(() => {
+		if (moves.length === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+		const delay = step === moves.length ? 1600 : stepMs;
+		const timer = window.setTimeout(() => setStep((step + 1) % frames.length), delay);
+		return () => window.clearTimeout(timer);
+	}, [step, frames.length, moves.length, stepMs]);
+
+	return (
+		<div className="h-64 w-full overflow-hidden rounded-md">
+			<Board2D config={frames[step]} start={frames[0]} target={frames[frames.length - 1]}
+				selected={null} destinations={[]} feedback={null}
+				lastStep={step > 0 ? { move: moves[step - 1], id: step } : null} />
 		</div>
 	);
 }
@@ -193,8 +173,8 @@ export function TransitionAnimations() {
 				</section>
 			))}
 			<figcaption className="text-sm text-zinc-500">
-				Figure 1. A slide follows two blue supports. A convex transition uses one blue pivot and
-				passes through the empty corner. The moving module is purple during playback.
+				Figure 1. A slide follows two supports. A convex transition uses one pivot and passes
+				through the empty corner. In 2D, the dashed outline marks the destination.
 			</figcaption>
 		</figure>
 	);

@@ -16,7 +16,7 @@ const operations = [
 		watch: "Watch the base turn into the empty cell underneath the neighboring pillar. The unlock variant begins with a sideways slide of the head.", alternate: "d-unlock" },
 	{ id: "e", title: "Shove a pillar", paper: "pp. 805–806, Figure 3",
 		definition: "After [a]–[d] are exhausted, choose an adjacent pillar with the lowest base above the base of $P$. A second side must be free at the base. Shove the part of $P$ up to the neighbor’s base. Its support shifts into the neighboring column and its head ends at the original base. Use the short construction below nine cubes and the zipper from nine cubes onward.",
-		watch: "Follow the amber pillar as the solver builds the zipper and shifts its support into the next column. Use the move slider to inspect the setup and final position." },
+		watch: "Follow the amber pillar as the solver builds the zipper and shifts its support into the next column. The final position is held briefly before the sequence repeats." },
 	{ id: "f", title: "Reduce potential above the floor", paper: "p. 806",
 		definition: "A cube above the floor may make any legal elementary move that decreases $\\Pi$ and ends inside the original bounding box.",
 		watch: "The elevated cube moves one column toward the origin at the same height. Watch the horizontal move reduce the potential." },
@@ -51,8 +51,7 @@ export function OperationComparison() {
 			</p>
 			<p>
 				Each example starts from a configuration chosen to trigger the indicated operation in the
-				solver’s usual order. The animation stops after that operation. Use the move controls to
-				compare the starting configuration, intermediate moves and final position with the paper’s description.
+				solver’s usual order. Each animation plays only that operation, pauses on the result, and repeats.
 				These examples demonstrate behavior on specific inputs.
 			</p>
 			{operations.map((operation) => (

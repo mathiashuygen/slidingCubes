@@ -20,14 +20,6 @@ export interface MoveSceneProps {
 	groups?: ColorGroup[];
 	/** Milliseconds per move. */
 	stepMs: number;
-	playing: boolean;
-	restart: number;
-	onStep: (step: number) => void;
-	/** Keep the final position visible until the viewer restarts or seeks. */
-	stopAtEnd?: boolean;
-	seek?: { step: number };
-	/** Top-down orthographic projection for square configurations. */
-	flat?: boolean;
 }
 
 const CUBE = "#0ea5e9";
@@ -81,10 +73,13 @@ function plan(start: Cell[], moves: Move[]): Plan {
 	return { mover, paths, frames };
 }
 
-function Cubes({ start, moves, groups = [], stepMs, playing, onStep, stopAtEnd, clockRef }: MoveSceneProps & { clockRef: RefObject<number> }) {
+function Cubes({ start, moves, groups = [], stepMs, clockRef }: MoveSceneProps & { clockRef: RefObject<number> }) {
 	const { mover, paths, frames } = useMemo(() => plan(start, moves), [start, moves]);
 	const refs = useRef<(Group | null)[]>([]);
-	const lastStep = useRef(-1);
+	const reducedMotion = useRef(false);
+	useEffect(() => {
+		reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+	}, []);
 
 	const colors = useMemo(
 		() => start.map((c) => groups.find((g) => g.cells.some((d) => equals(c, d)))?.color ?? CUBE),
@@ -92,24 +87,19 @@ function Cubes({ start, moves, groups = [], stepMs, playing, onStep, stopAtEnd, 
 	);
 
 	useFrame((_, delta) => {
-		if (playing) clockRef.current += delta * 1000;
+		if (!reducedMotion.current) clockRef.current += delta * 1000;
 		const total = moves.length * stepMs + HOLD_MS;
-		if (stopAtEnd) clockRef.current = Math.min(clockRef.current, moves.length * stepMs);
-		else if (clockRef.current >= total) clockRef.current = 0;
+		if (clockRef.current >= total) clockRef.current = 0;
 		const step = Math.min(Math.floor(clockRef.current / stepMs), moves.length);
 		const t = step < moves.length ? (clockRef.current - step * stepMs) / stepMs : 0;
 		const frame = frames[step];
 		refs.current.forEach((g, i) => {
 			if (!g) return;
-			const moving = step < moves.length && mover[step] === i;
+			const moving = !reducedMotion.current && step < moves.length && mover[step] === i;
 			g.position.copy(moving ? along(paths[step], t) : frame[i]);
 			const mesh = g.children[0] as unknown as { material: { color: { set(c: string): void } } };
 			mesh.material.color.set(moving ? MOVING : colors[i]);
 		});
-		if (step !== lastStep.current) {
-			lastStep.current = step;
-			onStep(step);
-		}
 	});
 
 	return (
@@ -128,11 +118,8 @@ function Cubes({ start, moves, groups = [], stepMs, playing, onStep, stopAtEnd, 
 }
 
 export default function MoveScene(props: MoveSceneProps) {
-	const { start, moves, box, restart, seek, stepMs, flat = false } = props;
+	const { start, moves, box } = props;
 	const clockRef = useRef(0);
-	useEffect(() => {
-		clockRef.current = (seek?.step ?? 0) * stepMs;
-	}, [restart, moves, seek, stepMs]);
 	// Frame every cell the animation touches, plus the box.
 	const extent = useMemo(() => {
 		const cells = [...start, ...moves.map((m) => m.to)];
@@ -160,14 +147,11 @@ export default function MoveScene(props: MoveSceneProps) {
 		<div ref={holder} className="h-64 w-full overflow-hidden rounded-md bg-zinc-50 dark:bg-zinc-900">
 			{visible && (
 				<Canvas
-					orthographic={flat}
-					camera={flat
-						? { up: [0, 1, 0], position: [middle.x, middle.y, middle.z + distance], zoom: 75 / Math.max(1, size / 2) }
-						: { up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
+					camera={{ up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
 				>
 					<ambientLight intensity={0.75} />
 					<directionalLight position={[middle.x + 6, middle.y - 9, middle.z + 12]} intensity={1.5} />
-					<OrbitControls makeDefault target={middle} enableZoom={false} enableRotate={!flat} enablePan={!flat} />
+					<OrbitControls makeDefault target={middle} enableZoom={false} />
 					<gridHelper
 						args={[Math.ceil(size) + 6, Math.ceil(size) + 6, "#a1a1aa", "#d4d4d8"]}
 						rotation={[Math.PI / 2, 0, 0]}
