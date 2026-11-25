@@ -110,18 +110,7 @@ export function CaseAnimation({ name, caption }: { name: keyof typeof CASES; cap
 	);
 }
 
-/** Only mount a WebGL scene while its example is open. */
-export function OperationAnimation({ name, label }: { name: OperationDemoName; label: string }) {
-	const [open, setOpen] = useState(false);
-	return (
-		<details name="compaction-operation-demo" onToggle={(event) => setOpen(event.currentTarget.open)}>
-			<summary className="cursor-pointer text-sm font-medium text-sky-700 dark:text-sky-400">{label}</summary>
-			{open && <OperationPlayer name={name} />}
-		</details>
-	);
-}
-
-function OperationPlayer({ name }: { name: OperationDemoName }) {
+export function OperationAnimation({ name, label }: { name: OperationDemoName; label?: string }) {
 	const data = useMemo(() => {
 		try {
 			return operationDemo(name);
@@ -147,6 +136,7 @@ function OperationPlayer({ name }: { name: OperationDemoName }) {
 	];
 	return (
 		<div className="mt-2 flex flex-col gap-2">
+			{label && <h5 className="text-sm font-medium">{label}</h5>}
 			<MoveScene start={data.start} moves={data.moves} box={data.box} groups={groups}
 				playing={playing} restart={0} seek={seek} stopAtEnd stepMs={last > 20 ? 280 : 850}
 				onStep={(next) => {

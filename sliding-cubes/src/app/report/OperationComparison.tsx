@@ -64,8 +64,8 @@ export function OperationComparison() {
 						</div>
 						<div className="min-w-0 space-y-2 text-sm">
 							<p>{operation.watch}</p>
-							<OperationAnimation name={operation.id} label={"alternate" in operation && operation.id === "i" ? "Open short-shove animation" : "Open 3D animation"} />
-							{"alternate" in operation && <OperationAnimation name={operation.alternate} label={operation.id === "i" ? "Open zipper animation" : "Open unlock variant"} />}
+							<OperationAnimation name={operation.id} label={"alternate" in operation && operation.id === "i" ? "Short shove" : undefined} />
+							{"alternate" in operation && <OperationAnimation name={operation.alternate} label={operation.id === "i" ? "Zipper" : "Unlock variant"} />}
 						</div>
 					</div>
 				</article>

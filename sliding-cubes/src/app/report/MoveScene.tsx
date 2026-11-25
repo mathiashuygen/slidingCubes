@@ -2,7 +2,7 @@
 
 import { Edges, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { type Group, Vector3 } from "three";
 import { type Box, type Cell, Configuration, type Move, applyMove, cellKey, equals } from "@/engine";
 
@@ -79,16 +79,10 @@ function plan(start: Cell[], moves: Move[]): Plan {
 	return { mover, paths, frames };
 }
 
-function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep, stopAtEnd, seek }: MoveSceneProps) {
+function Cubes({ start, moves, groups = [], stepMs, playing, onStep, stopAtEnd, clockRef }: MoveSceneProps & { clockRef: RefObject<number> }) {
 	const { mover, paths, frames } = useMemo(() => plan(start, moves), [start, moves]);
 	const refs = useRef<(Group | null)[]>([]);
-	const clock = useRef(0);
 	const lastStep = useRef(-1);
-
-	useEffect(() => {
-		clock.current = (seek?.step ?? 0) * stepMs;
-		lastStep.current = -1;
-	}, [restart, moves, seek, stepMs]);
 
 	const colors = useMemo(
 		() => start.map((c) => groups.find((g) => g.cells.some((d) => equals(c, d)))?.color ?? CUBE),
@@ -96,12 +90,12 @@ function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep, st
 	);
 
 	useFrame((_, delta) => {
-		if (playing) clock.current += delta * 1000;
+		if (playing) clockRef.current += delta * 1000;
 		const total = moves.length * stepMs + HOLD_MS;
-		if (stopAtEnd) clock.current = Math.min(clock.current, moves.length * stepMs);
-		else if (clock.current >= total) clock.current = 0;
-		const step = Math.min(Math.floor(clock.current / stepMs), moves.length);
-		const t = step < moves.length ? (clock.current - step * stepMs) / stepMs : 0;
+		if (stopAtEnd) clockRef.current = Math.min(clockRef.current, moves.length * stepMs);
+		else if (clockRef.current >= total) clockRef.current = 0;
+		const step = Math.min(Math.floor(clockRef.current / stepMs), moves.length);
+		const t = step < moves.length ? (clockRef.current - step * stepMs) / stepMs : 0;
 		const frame = frames[step];
 		refs.current.forEach((g, i) => {
 			if (!g) return;
@@ -132,7 +126,11 @@ function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep, st
 }
 
 export default function MoveScene(props: MoveSceneProps) {
-	const { start, moves, box } = props;
+	const { start, moves, box, restart, seek, stepMs } = props;
+	const clockRef = useRef(0);
+	useEffect(() => {
+		clockRef.current = (seek?.step ?? 0) * stepMs;
+	}, [restart, moves, seek, stepMs]);
 	// Frame every cell the animation touches, plus the box.
 	const extent = useMemo(() => {
 		const cells = [...start, ...moves.map((m) => m.to)];
@@ -145,7 +143,7 @@ export default function MoveScene(props: MoveSceneProps) {
 	const size = Math.max(...[0, 1, 2].map((i) => extent.max[i] - extent.min[i]));
 	const distance = size * 0.95 + 2;
 
-	// Only render while the scene is on screen.
+	// Release offscreen WebGL contexts while preserving the playback position.
 	const holder = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 	useEffect(() => {
@@ -158,30 +156,31 @@ export default function MoveScene(props: MoveSceneProps) {
 
 	return (
 		<div ref={holder} className="h-64 w-full overflow-hidden rounded-md bg-zinc-50 dark:bg-zinc-900">
-			<Canvas
-				frameloop={visible ? "always" : "never"}
-				camera={{ up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
-			>
-				<ambientLight intensity={0.75} />
-				<directionalLight position={[middle.x + 6, middle.y - 9, middle.z + 12]} intensity={1.5} />
-				<OrbitControls makeDefault target={middle} enableZoom={false} />
-				<gridHelper
-					args={[Math.ceil(size) + 6, Math.ceil(size) + 6, "#a1a1aa", "#d4d4d8"]}
-					rotation={[Math.PI / 2, 0, 0]}
-					position={[Math.round(middle.x), Math.round(middle.y), extent.min[2]]}
-				/>
-				{box && (
-					<mesh
-						position={[(box.min[0] + box.max[0] + 1) / 2, (box.min[1] + box.max[1] + 1) / 2, (box.min[2] + box.max[2] + 1) / 2]}
-						raycast={() => null}
-					>
-						<boxGeometry args={[box.max[0] - box.min[0] + 1, box.max[1] - box.min[1] + 1, box.max[2] - box.min[2] + 1]} />
-						<meshBasicMaterial transparent opacity={0} depthWrite={false} />
-						<Edges color="#10b981" />
-					</mesh>
-				)}
-				<Cubes {...props} />
-			</Canvas>
+			{visible && (
+				<Canvas
+					camera={{ up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
+				>
+					<ambientLight intensity={0.75} />
+					<directionalLight position={[middle.x + 6, middle.y - 9, middle.z + 12]} intensity={1.5} />
+					<OrbitControls makeDefault target={middle} enableZoom={false} />
+					<gridHelper
+						args={[Math.ceil(size) + 6, Math.ceil(size) + 6, "#a1a1aa", "#d4d4d8"]}
+						rotation={[Math.PI / 2, 0, 0]}
+						position={[Math.round(middle.x), Math.round(middle.y), extent.min[2]]}
+					/>
+					{box && (
+						<mesh
+							position={[(box.min[0] + box.max[0] + 1) / 2, (box.min[1] + box.max[1] + 1) / 2, (box.min[2] + box.max[2] + 1) / 2]}
+							raycast={() => null}
+						>
+							<boxGeometry args={[box.max[0] - box.min[0] + 1, box.max[1] - box.min[1] + 1, box.max[2] - box.min[2] + 1]} />
+							<meshBasicMaterial transparent opacity={0} depthWrite={false} />
+							<Edges color="#10b981" />
+						</mesh>
+					)}
+					<Cubes {...props} clockRef={clockRef} />
+				</Canvas>
+			)}
 		</div>
 	);
 }
