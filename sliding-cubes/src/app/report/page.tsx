@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CaseAnimation } from "./animations";
+import { OperationComparison } from "./OperationComparison";
 import { ChainRelocationFigure, GatherFigure, PinnedStripFigure, ThinBridgeFigure } from "./figures";
 
 export const metadata: Metadata = {
@@ -327,35 +328,7 @@ export default function Report() {
 					a matching worst-case lower bound. The same upper bound has yet to be established for our
 					implementation, which uses the alternative move sequences described in Section 7.
 				</p>
-				<H3>Operations</H3>
-				<ul className="list-disc pl-6">
-					<li>
-						<Op>[a]–[d]</Op> lower cubes of a non-cut <em>pillar</em> (a vertical run of cubes)
-						using a neighbouring pillar.
-					</li>
-					<li>
-						<Op>[e]</Op> is a <em>pillar shove</em>: all cubes of the pillar except the top one
-						move one column sideways, and the top cube drops to the bottom of the original column.
-						Pillars of 9 or more cubes use the paper&apos;s &ldquo;zipper&rdquo;, a constant number
-						of moves per level, which keeps the cost linear in the height. The &ldquo;Zipper&rdquo;
-						level in the game shows it: its solution starts with a long zipper shove.
-					</li>
-					<li>
-						<Op>[f]</Op> and <Op>[g]</Op> make any single move that lowers Π and stays in the box,
-						first for cubes above the floor, then for cubes of a floor component.
-					</li>
-					<li>
-						<Op>[h]</Op> and <Op>[i]</Op> handle a <em>small</em> floor component L (too few cubes
-						to reach the origin), attached to the
-						rest by a <em>clearing pillar</em> P: they move the cube under P towards the origin, or
-						gather cubes of L around P, shove P, and put the cubes back.
-					</li>
-					<li>
-						A <em>big</em> floor component (enough cubes to reach the origin) is solved by running
-						the same algorithm in 2D on the floor, with the cube under P <em>pinned</em> so that L
-						stays attached. In that run, <Op>[j]</Op> handles one-dimensional strips.
-					</li>
-				</ul>
+				<OperationComparison />
 				<p>
 					The paper proves that when no operation applies, the configuration is finished (Theorem
 					1). Our solver tries operations in order, checks the legality of every accepted move sequence,
