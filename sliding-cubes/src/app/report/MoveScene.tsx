@@ -23,6 +23,9 @@ export interface MoveSceneProps {
 	playing: boolean;
 	restart: number;
 	onStep: (step: number) => void;
+	/** Keep the final position visible until the viewer restarts or seeks. */
+	stopAtEnd?: boolean;
+	seek?: { step: number };
 }
 
 const CUBE = "#0ea5e9";
@@ -76,16 +79,16 @@ function plan(start: Cell[], moves: Move[]): Plan {
 	return { mover, paths, frames };
 }
 
-function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep }: MoveSceneProps) {
+function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep, stopAtEnd, seek }: MoveSceneProps) {
 	const { mover, paths, frames } = useMemo(() => plan(start, moves), [start, moves]);
 	const refs = useRef<(Group | null)[]>([]);
 	const clock = useRef(0);
 	const lastStep = useRef(-1);
 
 	useEffect(() => {
-		clock.current = 0;
+		clock.current = (seek?.step ?? 0) * stepMs;
 		lastStep.current = -1;
-	}, [restart, moves]);
+	}, [restart, moves, seek, stepMs]);
 
 	const colors = useMemo(
 		() => start.map((c) => groups.find((g) => g.cells.some((d) => equals(c, d)))?.color ?? CUBE),
@@ -95,7 +98,8 @@ function Cubes({ start, moves, groups = [], stepMs, playing, restart, onStep }: 
 	useFrame((_, delta) => {
 		if (playing) clock.current += delta * 1000;
 		const total = moves.length * stepMs + HOLD_MS;
-		if (clock.current >= total) clock.current = 0;
+		if (stopAtEnd) clock.current = Math.min(clock.current, moves.length * stepMs);
+		else if (clock.current >= total) clock.current = 0;
 		const step = Math.min(Math.floor(clock.current / stepMs), moves.length);
 		const t = step < moves.length ? (clock.current - step * stepMs) / stepMs : 0;
 		const frame = frames[step];

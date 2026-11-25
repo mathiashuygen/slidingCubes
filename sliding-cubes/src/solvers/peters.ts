@@ -57,6 +57,16 @@ export function compact3D(start: Configuration, box: Box = start.boundingBox()):
 	return recorder.output();
 }
 
+/** Plan exactly one operation from an in-box state, using the normal solver order. */
+export function firstCompactionOperation(start: Configuration, box: Box = start.boundingBox()): Operation {
+	if (!isConnected(start)) throw new SolverError("The start configuration must be connected.");
+	if (start.toArray().some((c) => !inBox(c, box))) throw new SolverError("The operation must start inside the box.");
+	if (compactedInBox(box).isReached(start)) throw new SolverError("The configuration is already compacted.");
+	const op = nextOperation(canonical(start), verticalFrame(box, rules3D(box)));
+	if (!op) throw new SolverError("No operation applies, but the cubes are not compacted yet.");
+	return op;
+}
+
 interface Operation {
 	name: string;
 	moves: Move[];

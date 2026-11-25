@@ -382,7 +382,7 @@ export default function Report() {
 				<p>
 					Because every solver move is checked by the rules engine, a bug in a solver shows up as a
 					failed replay or as a state where no operation applies, never as a silently illegal
-					solution. The test suite (150 tests) replays the curated levels, seeded random shapes and
+					solution. The test suite (164 tests) replays the curated levels, seeded random shapes and
 					hand-built cases for the more involved operations ([e], [h], [i] and [j]), and checks that every level&apos;s stored move count
 					still matches the solver.
 				</p>
@@ -502,16 +502,27 @@ export default function Report() {
 						succeeded.
 					</li>
 					<li>
-						A box that is only one cube thick is solved as a 2D instance in its vertical plane.
-						When the solver cannot construct the zipper for a long pillar, it tries the short shove.
-						This handles cases such as a pillar at a thin-box wall and can take quadratically many moves
-						in the pillar&apos;s height.
+						<strong>Long shoves in thin boxes.</strong> The implementation restricts a vertical
+						one-cube-thick box to its occupied plane. The long <Op>[e]</Op> zipper needs a third
+						column for simultaneous helpers. In the thin bridge in Figure 4, that column is
+						occupied or outside the box, where only one cube may be at a time. The solver tries
+						the short shove to reach the same final occupancy with legal moves. On a long
+						pillar, that construction can take quadratically many moves in its height, so the
+						paper’s linear cost for a long shove does not follow for this fallback.
 					</li>
 					<li>
-						Where the paper fixes exact cells for helper cubes, we search for a placement and keep
-						the first one that the engine accepts and that lowers Π. In <Op>[i]</Op> we use the
-						short shove when L has too few cubes for the zipper, and in <Op>[h]</Op> we rearrange
-						the gathered cubes when L runs out.
+						<strong>Helper placement in [h] and [i].</strong> The solver specifies target cells
+						and searches for a legal order to fill them. A cube that is blocked or would
+						disconnect the configuration can become movable after another helper is placed.
+						In <Op>[i]</Op>, the paper already uses direct filling for a short shove and allows
+						borrowing from the pillar when L runs out of helpers. The code additionally uses
+						direct filling when the available pieces fall below its zipper setup threshold.
+						In <Op>[h]</Op>, the paper permits gathering to stop when L is exhausted. Our
+						solver can try other arrangements within the gathering square if the base still
+						cannot move, and recomputes the destination when a helper occupies it. These
+						searches are checked for legality and a decrease in Π on the accepted sequence.
+						Those checks establish neither that a sequence will always be found nor that
+						its length is proportional to the decrease.
 					</li>
 				</ul>
 				<ChainRelocationFigure />

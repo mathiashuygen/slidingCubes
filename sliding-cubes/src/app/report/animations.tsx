@@ -5,8 +5,9 @@ import { type ReactNode, useMemo, useState } from "react";
 import { type Box, type Cell, Configuration, type Move, rules2D } from "@/engine";
 import { MoveRecorder } from "@/solvers/common";
 import { relocateChain } from "@/solvers/dumitrescuPach";
-import { compact3D } from "@/solvers/peters";
+import { firstCompactionOperation } from "@/solvers/peters";
 import type { ColorGroup } from "./MoveScene";
+import { type OperationDemoName, operationDemo } from "./operationDemos";
 
 // Three.js needs the browser, so the scenes are never prerendered.
 const MoveScene = dynamic(() => import("./MoveScene"), {
@@ -29,9 +30,7 @@ const RED = "#f43f5e";
 
 /** The first operation the solver performs from `start`: the one that resolves the stuck state. */
 function firstOperation(start: Cell[], box?: Box): { moves: Move[]; name: string } {
-	const output = compact3D(new Configuration(start), box);
-	const phase = output.phases[0];
-	return { moves: output.moves.slice(phase.start, phase.end), name: phase.name };
+	return firstCompactionOperation(new Configuration(start), box);
 }
 
 const CASES: Record<string, () => Case> = {
@@ -108,5 +107,65 @@ export function CaseAnimation({ name, caption }: { name: keyof typeof CASES; cap
 			)}
 			<figcaption className="text-sm text-zinc-500">{caption}</figcaption>
 		</figure>
+	);
+}
+
+/** Only mount a WebGL scene while its example is open. */
+export function OperationAnimation({ name, label }: { name: OperationDemoName; label: string }) {
+	const [open, setOpen] = useState(false);
+	return (
+		<details name="compaction-operation-demo" onToggle={(event) => setOpen(event.currentTarget.open)}>
+			<summary className="cursor-pointer text-sm font-medium text-sky-700 dark:text-sky-400">{label}</summary>
+			{open && <OperationPlayer name={name} />}
+		</details>
+	);
+}
+
+function OperationPlayer({ name }: { name: OperationDemoName }) {
+	const data = useMemo(() => {
+		try {
+			return operationDemo(name);
+		} catch (error) {
+			return error instanceof Error ? error : new Error(String(error));
+		}
+	}, [name]);
+	const [playing, setPlaying] = useState(false);
+	const [step, setStep] = useState(0);
+	const [seek, setSeek] = useState<{ step: number }>();
+
+	if (data instanceof Error) return <p className="mt-2 text-sm text-rose-600">{data.message}</p>;
+	const last = data.moves.length;
+	const jump = (next: number) => {
+		setPlaying(false);
+		setStep(next);
+		setSeek({ step: next });
+	};
+	const button = "rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800";
+	const groups: ColorGroup[] = [
+		...(data.pin ? [{ cells: [data.pin], color: RED }] : []),
+		{ cells: data.highlight, color: AMBER },
+	];
+	return (
+		<div className="mt-2 flex flex-col gap-2">
+			<MoveScene start={data.start} moves={data.moves} box={data.box} groups={groups}
+				playing={playing} restart={0} seek={seek} stopAtEnd stepMs={last > 20 ? 280 : 850}
+				onStep={(next) => {
+					setStep(next);
+					if (next === last) setPlaying(false);
+				}} />
+			<div className="flex flex-wrap items-center gap-2 text-xs">
+				<button type="button" className={button} onClick={() => {
+					if (step === last) jump(0);
+					setPlaying(!playing);
+				}}>{playing ? "Pause" : step === last ? "Replay" : "Play"}</button>
+				<button type="button" className={button} onClick={() => jump(0)}>Restart</button>
+				<button type="button" className={button} disabled={step === 0} onClick={() => jump(step - 1)}>Previous move</button>
+				<button type="button" className={button} disabled={step === last} onClick={() => jump(step + 1)}>Next move</button>
+				<output className="tabular-nums">{step} / {last} moves complete</output>
+			</div>
+			<input aria-label="Position in operation" type="range" min={0} max={last} value={step}
+				onChange={(event) => jump(Number(event.currentTarget.value))} />
+			<p className="text-xs text-zinc-500">{data.name} · Amber marks the relevant cubes at the start. Purple marks the moving cube. Drag to rotate.</p>
+		</div>
 	);
 }
