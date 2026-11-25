@@ -10,7 +10,7 @@ self.onmessage = (event: MessageEvent<SolverRequest>) => {
 		const ms = () => performance.now() - started;
 		response =
 			request.kind === "solve"
-				? { id: request.id, ok: true, kind: "solve", output: solveLevel(request.level), ms: ms() }
+				? { id: request.id, ok: true, kind: "solve", output: solveLevel(request.level, request.withoutFallbacks), ms: ms() }
 				: { id: request.id, ok: true, kind: "hint", hint: hintFor(request.level, request.cells), ms: ms() };
 	} catch (error) {
 		response = { id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) };

@@ -30,6 +30,7 @@ export interface Phase {
 }
 
 export interface SolverOutput {
+	stopped?: string;
 	moves: Move[];
 	phases: Phase[];
 }

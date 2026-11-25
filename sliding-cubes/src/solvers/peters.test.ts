@@ -28,6 +28,19 @@ describe("Peters et al. 3D compaction", () => {
 		});
 	}
 
+	it("keeps the legal prefix when the thin bridge runs out of operations without the fallback", () => {
+		const narrow = toConfiguration(levels3D.find((level) => level.id === "zipper-thin-bridge")!.start);
+		expect(compact3D(narrow, undefined, true)).toMatchObject({ stopped: expect.any(String), moves: [] });
+
+		const wide = toConfiguration(levels3D.find((level) => level.id === "zipper-thin-bridge-wide")!.start);
+		const box = wide.boundingBox();
+		const { moves, phases, stopped } = compact3D(wide, box, true);
+		expect(stopped).toMatch(/No operation applies/);
+		expect(phases.map((phase) => phase.name)).toEqual(["[e] long zipper shove"]);
+		expect(moves).toHaveLength(51);
+		expect(replay(wide, moves, rules3D(box)).ok).toBe(true);
+	});
+
 	it("labels every move with an operation of the paper", () => {
 		const { phases } = check(toConfiguration(levels3D[2].start));
 		for (const { name } of phases) expect(name).toMatch(/^\[[a-j]\] /);

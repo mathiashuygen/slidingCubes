@@ -9,8 +9,8 @@ export type { Phase, SolverOutput } from "./common";
 export { SolverError } from "./common";
 
 /** Runs the paper's solver for the level's mode: Dumitrescu–Pach in 2D, Peters et al. in 3D. */
-export function solveLevel(level: Level): SolverOutput {
-	return level.mode === "2d" ? solve2D(toConfiguration(level.start), toConfiguration(level.target)) : compact3D(toConfiguration(level.start));
+export function solveLevel(level: Level, withoutFallbacks = false): SolverOutput {
+	return level.mode === "2d" ? solve2D(toConfiguration(level.start), toConfiguration(level.target)) : compact3D(toConfiguration(level.start), undefined, withoutFallbacks);
 }
 
 /** Up to this many modules, a hint is the first move of a shortest solution (BFS). */
@@ -63,7 +63,7 @@ function toConfigurationFrom(cells: Cell[]): Configuration {
 	return toConfiguration(cells.map((c): [number, number, number] => [c[0], c[1], c[2]]));
 }
 
-export type SolverRequest = { id: number; kind: "solve"; level: Level } | { id: number; kind: "hint"; level: Level; cells: Cell[] };
+export type SolverRequest = { id: number; kind: "solve"; level: Level; withoutFallbacks?: boolean } | { id: number; kind: "hint"; level: Level; cells: Cell[] };
 
 export type SolverResponse =
 	| { id: number; ok: true; kind: "solve"; output: SolverOutput; ms: number }

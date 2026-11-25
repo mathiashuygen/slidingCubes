@@ -25,14 +25,14 @@ import { MoveRecorder, type SolverOutput, SolverError, canonical, findPath, modu
  * own connected component and, when attached by a clearing pillar, a fixed
  * cube. Its moves must also be legal in the enclosing 3D configuration.
  */
-export function compact3D(start: Configuration, box: Box = start.boundingBox()): SolverOutput {
+export function compact3D(start: Configuration, box: Box = start.boundingBox(), withoutFallbacks = false): SolverOutput {
 	if (!isConnected(start)) throw new SolverError("The start configuration must be connected.");
 	const rules = rules3D(box);
 	const outside = rules.space.checkStart(start);
 	if (outside) throw new SolverError(outside);
 	const goal = compactedInBox(box);
 	const recorder = new MoveRecorder(canonical(start), rules);
-	const frame = verticalFrame(box, rules);
+	const frame = { ...verticalFrame(box, rules), withoutFallbacks };
 
 	// A mid-game state (for hints) may have its one cube just outside the box;
 	// the paper always starts inside, so first bring that cube back in.
@@ -47,7 +47,11 @@ export function compact3D(start: Configuration, box: Box = start.boundingBox()):
 	let current = potential(recorder.config, box);
 	while (!goal.isReached(recorder.config)) {
 		const op = nextOperation(recorder.config, frame);
-		if (!op) throw new SolverError("No operation applies, but the cubes are not compacted yet.");
+		if (!op) {
+			const message = "No operation applies, but the cubes are not compacted yet.";
+			if (withoutFallbacks) return { ...recorder.output(), stopped: message };
+			throw new SolverError(message);
+		}
 		recorder.setPhase(op.name);
 		recorder.applyAll(op.moves);
 		const after = potential(recorder.config, box);
@@ -95,6 +99,7 @@ const inBox = (c: Cell, box: Box) => [0, 1, 2].every((i) => box.min[i] <= c[i] &
  * (a, b) the horizontal position. In 2D, b is fixed.
  */
 interface Frame {
+	withoutFallbacks?: boolean;
 	pin?: Cell;
 	label: string;
 	/** Name of the axis cubes are lowered along. */
@@ -446,6 +451,7 @@ function pillarShove(config: Configuration, frame: Frame, a: number, b: number, 
 				zipper(work, goal, column(frame, a, b, base, base + 4), base + 5, top, src, dst, spare, frame, side.mirrored));
 			if (moves) return { name: `[e] long zipper shove${frame.label}`, moves };
 		}
+		if (frame.withoutFallbacks) continue;
 		// The zipper needs a free third column. Against a wall of a one-cube-thick
 		// box that column is outside the box, where the in-place rule allows only
 		// one cube. The short shove still works, with quadratically many moves.
@@ -470,7 +476,7 @@ function clearingShove(config: Configuration, frame: Frame, low: Cell[], p: Pill
 	for (const target of sides.filter((s) => config.has(at(s)(top)))) {
 		const dst = at(target);
 		const goal = shoveGoal(config, src, dst, base, top);
-		if (top - frame.floor < 5 || low.length + top - base + 1 < 9) {
+		if (top - frame.floor < 5 || (!frame.withoutFallbacks && low.length + top - base + 1 < 9)) {
 			const destinations = column(frame, target.a, target.b, base, top - 1).reverse();
 			const donors = [...floorDonors, ...column(frame, p.a, p.b, base, top)];
 			// A floor cube under the new column can keep L attached during the transfer.
@@ -565,7 +571,7 @@ function planarOperation(world: Configuration, cells: Cell[], parent: Frame, pin
 			},
 		},
 	};
-	return nextOperation(local, frameBottomLayer(parent.box, rules, pin));
+	return nextOperation(local, { ...frameBottomLayer(parent.box, rules, pin), withoutFallbacks: parent.withoutFallbacks });
 }
 
 function lowComponentOperation(config: Configuration, frame: Frame): Operation | null {
@@ -735,7 +741,7 @@ function underPillarOperation(config: Configuration, frame: Frame, low: Cell[], 
 		// Gathering can fill e when it lies in the 3×3 square. Then choose e
 		// again by the same rule, or else a free cell of the square.
 		const again = emptyCell(state);
-		const destinations = state.has(e!) ? [...(again ? [again] : []), ...floorSquare(frame, a, b)] : [e!];
+		const destinations = !frame.withoutFallbacks && state.has(e!) ? [...(again ? [again] : []), ...floorSquare(frame, a, b)] : [e!];
 		for (const dest of destinations) {
 			if (state.has(dest)) continue;
 			const work = state.clone();
@@ -752,7 +758,7 @@ function underPillarOperation(config: Configuration, frame: Frame, low: Cell[], 
 	const moves: Move[] = [];
 	gatherFloor(work, moves, low, footprint, frame);
 	const result = finish(work, moves);
-	if (result) return result;
+	if (result || frame.withoutFallbacks) return result;
 
 	// An exhausted L may have fewer cubes than the footprint. Reposition the
 	// remaining donors within that footprint until the base is free to leave.

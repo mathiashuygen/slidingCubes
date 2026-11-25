@@ -53,7 +53,7 @@ const SOLVER_NAMES = { "2d": "Dumitrescu–Pach", "3d": "Peters et al." } as con
 type SolverRun =
 	| { status: "idle" }
 	| { status: "running" }
-	| { status: "done"; moves: Move[]; phases: Phase[]; ms: number }
+	| { status: "done"; moves: Move[]; phases: Phase[]; ms: number; stopped?: string }
 	| { status: "error"; message: string };
 
 /** Debug viewer for both modes: play by clicking, or load a move list and step through it. */
@@ -142,16 +142,16 @@ export function Playground() {
 		setPlaying(false);
 	}
 
-	async function runPaperSolver(forLevel: Level = level) {
+	async function runPaperSolver(forLevel: Level = level, withoutFallbacks = false) {
 		setSolverRun({ status: "running" });
-		const response = await solve(forLevel);
+		const response = await solve(forLevel, withoutFallbacks);
 		// Ignore results for a level the player has since left.
 		if (forLevel !== stateRef.current.level) return;
 		if (!response.ok || response.kind !== "solve") {
 			setSolverRun({ status: "error", message: response.ok ? "Unexpected solver response." : response.error });
 			return;
 		}
-		setSolverRun({ status: "done", moves: response.output.moves, phases: response.output.phases, ms: response.ms });
+		setSolverRun({ status: "done", moves: response.output.moves, phases: response.output.phases, ms: response.ms, stopped: response.output.stopped });
 		loadSolution(response.output.moves);
 	}
 
@@ -531,6 +531,7 @@ export function Playground() {
 					current={solverRun.status === "done" && solverRun.moves === moves ? solverRun : null}
 					cursor={cursor}
 					onRun={() => void runPaperSolver()}
+					onRunWithoutFallbacks={mode === "3d" ? () => void runPaperSolver(level, true) : undefined}
 					onCancel={() => {
 						cancel();
 						setSolverRun({ status: "idle" });
@@ -586,14 +587,16 @@ function SolverPanel({
 	current,
 	cursor,
 	onRun,
+	onRunWithoutFallbacks,
 	onCancel,
 	onSeek,
 }: {
 	name: string;
 	run: SolverRun;
-	current: { moves: Move[]; phases: Phase[]; ms: number } | null;
+	current: { moves: Move[]; phases: Phase[]; ms: number; stopped?: string } | null;
 	cursor: number;
 	onRun: () => void;
+	onRunWithoutFallbacks?: () => void;
 	onCancel: () => void;
 	onSeek: (index: number) => void;
 }) {
@@ -611,6 +614,9 @@ function SolverPanel({
 				<button className={button} disabled={run.status === "running"} onClick={onRun}>
 					{run.status === "running" ? "Solving…" : "Run solver"}
 				</button>
+				{onRunWithoutFallbacks && (
+					<button className={button} disabled={run.status === "running"} onClick={onRunWithoutFallbacks}>Run without fallbacks</button>
+				)}
 				{run.status === "running" && (
 					<button className={button} onClick={onCancel}>
 						Cancel
@@ -618,6 +624,12 @@ function SolverPanel({
 				)}
 			</div>
 			{run.status === "error" && <p className="text-sm text-rose-600 dark:text-rose-400">{run.message}</p>}
+			{current?.stopped && (
+				<div className="flex flex-col items-start gap-2 text-sm text-rose-600 dark:text-rose-400">
+					<p>Stopped after {current.moves.length} moves. {current.stopped}</p>
+					{current.moves.length > 0 && <button className={button} onClick={() => onSeek(current.moves.length)}>Jump to stopping point</button>}
+				</div>
+			)}
 			{current && (
 				<>
 					<p className="text-xs text-zinc-500">

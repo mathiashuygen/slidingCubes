@@ -41,7 +41,7 @@ export function useSolver() {
 		});
 	}, []);
 
-	const solve = useCallback((level: Level) => send({ kind: "solve", level }), [send]);
+	const solve = useCallback((level: Level, withoutFallbacks = false) => send({ kind: "solve", level, withoutFallbacks }), [send]);
 	const hint = useCallback((level: Level, cells: Cell[]) => send({ kind: "hint", level, cells }), [send]);
 
 	return { solve, hint, cancel };
