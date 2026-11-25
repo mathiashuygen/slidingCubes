@@ -362,18 +362,16 @@ export default function Report() {
 						paper’s linear cost for a long shove does not follow for this fallback.
 					</li>
 					<li>
-						<strong>Helper placement in [h] and [i].</strong> The solver specifies target cells
-						and searches for a legal order to fill them. A cube that is blocked or would
-						disconnect the configuration can become movable after another helper is placed.
-						In <Op>[i]</Op>, the paper already uses direct filling for a short shove and allows
-						borrowing from the pillar when L runs out of helpers. The code additionally uses
-						direct filling when the available pieces fall below its zipper setup threshold.
-						In <Op>[h]</Op>, the paper permits gathering to stop when L is exhausted. Our
-						solver can try other arrangements within the gathering square if the base still
-						cannot move, and recomputes the destination when a helper occupies it. These
-						searches are checked for legality and a decrease in <Math tex="\Pi" /> on the accepted sequence.
-						Those checks establish neither that a sequence will always be found nor that
-						its length is proportional to the decrease.
+						<strong>Gathering in [h].</strong> The paper permits gathering to stop when the
+						low component runs out of cubes. The solver can try other arrangements within
+						the gathering square if the base still cannot move. It also recomputes the
+						destination if a helper occupies it. The solver checks that each accepted
+						sequence is legal and lowers <Math tex="\Pi" />.
+					</li>
+					<li>
+						<strong>Contact at the head in [i].</strong> The solver allows the first horizontal
+						neighbor of the clearing pillar to be at its head, as shown in Figure 6 of the
+						paper. The printed condition requires <Math tex="z_b' < z_t" />.
 					</li>
 				</ul>
 				<ChainRelocationFigure />

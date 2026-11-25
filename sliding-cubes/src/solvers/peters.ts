@@ -99,6 +99,8 @@ const inBox = (c: Cell, box: Box) => [0, 1, 2].every((i) => box.min[i] <= c[i] &
  * (a, b) the horizontal position. In 2D, b is fixed.
  */
 interface Frame {
+	/** Commit to the first legal placement when building a clearing-pillar shove. */
+	greedyPlacement?: boolean;
 	withoutFallbacks?: boolean;
 	pin?: Cell;
 	label: string;
@@ -330,7 +332,7 @@ function place(
 				const next = work.clone();
 				for (const m of path) applyMove(next, m);
 				const result = visit(next, moves.concat(path));
-				if (result) return result;
+				if (result || frame.greedyPlacement) return result;
 			}
 		}
 		return null;
@@ -463,6 +465,7 @@ function pillarShove(config: Configuration, frame: Frame, a: number, b: number, 
 
 /** Figure 6. Helpers are borrowed from L and all floor cells are restored. */
 function clearingShove(config: Configuration, frame: Frame, low: Cell[], p: Pillar): Operation | null {
+	frame = { ...frame, greedyPlacement: true };
 	const src = (z: number) => frame.toCell(p.a, p.b, z);
 	const sides = frame.sides.map(([da, db]) => ({ a: p.a + da, b: p.b + db }));
 	const at = (s: SidePosition): Column => (z) => frame.toCell(s.a, s.b, z);
@@ -476,7 +479,7 @@ function clearingShove(config: Configuration, frame: Frame, low: Cell[], p: Pill
 	for (const target of sides.filter((s) => config.has(at(s)(top)))) {
 		const dst = at(target);
 		const goal = shoveGoal(config, src, dst, base, top);
-		if (top - frame.floor < 5 || (!frame.withoutFallbacks && low.length + top - base + 1 < 9)) {
+		if (top - frame.floor < 5) {
 			const destinations = column(frame, target.a, target.b, base, top - 1).reverse();
 			const donors = [...floorDonors, ...column(frame, p.a, p.b, base, top)];
 			// A floor cube under the new column can keep L attached during the transfer.
