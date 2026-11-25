@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CaseAnimation } from "./animations";
+import { CaseAnimation, TransitionAnimations } from "./animations";
+import { Math } from "./Math";
 import { OperationComparison } from "./OperationComparison";
 import { ChainRelocationFigure } from "./figures";
 
@@ -51,105 +52,6 @@ function Cite({ n }: { n: number }) {
 
 function Op({ children }: { children: ReactNode }) {
 	return <span className="font-mono text-[0.92em] font-semibold">{children}</span>;
-}
-
-/** Figure 1: a slide and a convex transition in a 2×2 square. */
-function MovesFigure() {
-	const cell = 36;
-	const square = (x: number, y: number, kind: "fixed" | "mover" | "target") => (
-		<rect
-			key={`${x},${y},${kind}`}
-			x={x * cell + 2}
-			y={y * cell + 2}
-			width={cell - 4}
-			height={cell - 4}
-			rx={4}
-			className={
-				kind === "fixed"
-					? "fill-zinc-300 dark:fill-zinc-600"
-					: kind === "mover"
-						? "fill-sky-500"
-						: "fill-none stroke-sky-500"
-			}
-			strokeDasharray={kind === "target" ? "4 3" : undefined}
-			strokeWidth={2}
-		/>
-	);
-	const grid = (ox: number) => (
-		<g transform={`translate(${ox},10)`}>
-			{[0, 1].map((x) =>
-				[0, 1].map((y) => (
-					<rect
-						key={`${x}${y}`}
-						x={x * cell}
-						y={y * cell}
-						width={cell}
-						height={cell}
-						className="fill-none stroke-zinc-300 dark:stroke-zinc-700"
-					/>
-				)),
-			)}
-		</g>
-	);
-	return (
-		<figure className="my-2 flex flex-col items-center gap-2">
-			<svg
-				viewBox="0 0 300 110"
-				className="w-full max-w-sm"
-				role="img"
-				aria-label="A slide and a convex transition"
-			>
-				{grid(30)}
-				<g transform="translate(30,10)">
-					{square(0, 1, "fixed")}
-					{square(1, 1, "fixed")}
-					{square(0, 0, "mover")}
-					{square(1, 0, "target")}
-					<path
-						d="M26 18 H50"
-						className="stroke-zinc-900 dark:stroke-zinc-100"
-						strokeWidth={2}
-						markerEnd="url(#arrow)"
-					/>
-				</g>
-				{grid(190)}
-				<g transform="translate(190,10)">
-					{square(0, 1, "fixed")}
-					{square(0, 0, "mover")}
-					{square(1, 1, "target")}
-					<path
-						d="M26 18 Q54 18 54 44"
-						className="fill-none stroke-zinc-900 dark:stroke-zinc-100"
-						strokeWidth={2}
-						markerEnd="url(#arrow)"
-					/>
-				</g>
-				<defs>
-					<marker
-						id="arrow"
-						viewBox="0 0 10 10"
-						refX="8"
-						refY="5"
-						markerWidth="6"
-						markerHeight="6"
-						orient="auto-start-reverse"
-					>
-						<path d="M0 0 L10 5 L0 10 z" className="fill-zinc-900 dark:fill-zinc-100" />
-					</marker>
-				</defs>
-				<text x="66" y="102" textAnchor="middle" className="fill-current text-[11px]">
-					slide
-				</text>
-				<text x="226" y="102" textAnchor="middle" className="fill-current text-[11px]">
-					convex transition
-				</text>
-			</svg>
-			<figcaption className="text-sm text-zinc-500">
-				Figure 1. The two moves. Blue: the moving module; grey: stationary neighbours; dashed: its
-				destination. The convex transition needs the swept corner (top right) to be empty.
-			</figcaption>
-		</figure>
-	);
 }
 
 export default function Report() {
@@ -222,9 +124,9 @@ export default function Report() {
 
 			<Section id="model" title="2. The sliding model">
 				<p>
-					A configuration is a set of <em>n</em> grid cells, each occupied by one module: squares in
-					ℤ² or cubes in ℤ³. Two modules are adjacent when they share a side (2D) or a face (3D);
-					touching at a corner or edge does not count. One module moves at a time, inside a 2×2
+					A configuration is a set of <Math tex="n" /> grid cells, each occupied by one module: squares in
+					<Math tex="\mathbb{Z}^2" /> or cubes in <Math tex="\mathbb{Z}^3" />. Two modules are adjacent when they share a side (2D) or a face (3D);
+					touching at a corner or edge does not count. One module moves at a time, inside a <Math tex="2\times2" />
 					square of some coordinate plane:
 				</p>
 				<ul className="list-disc pl-6">
@@ -237,7 +139,7 @@ export default function Report() {
 						diagonal cell, through an empty corner.
 					</li>
 				</ul>
-				<MovesFigure />
+				<TransitionAnimations />
 				<p>
 					After removing the moving module, the remaining modules must still be connected. This is
 					the definition of a move in <Cite n={1} />. Dumitrescu and Pach only require the
@@ -267,7 +169,7 @@ export default function Report() {
 					move).
 				</p>
 				<p>
-					A base cell <em>s</em> is chosen in the rightmost column, and a chain <em>Z</em> grows
+					A base cell <Math tex="s" /> is chosen in the rightmost column, and a chain <Math tex="Z" /> grows
 					eastwards from it, one module per iteration. Each iteration picks a module to add:
 				</p>
 				<ul className="list-disc pl-6">
@@ -282,17 +184,17 @@ export default function Report() {
 					<li>
 						<Op>Step 2</Op>: if every module outside the chain has degree at least two, there are
 						cycles. The algorithm takes a <em>maximal cycle</em> with exactly one <em>connector</em>{" "}
-						and the top module <em>a</em> of its highest vertical edge in the rightmost column (or the
-						leftmost column, if the connector lies on that edge). If <em>a</em> is on the
+						and the top module <Math tex="a" /> of its highest vertical edge in the rightmost column (or the
+						leftmost column, if the connector lies on that edge). If <Math tex="a" /> is on the
 						outer boundary it joins the chain (<Op>2.A</Op>); otherwise it moves into the hole it
 						borders, next to a <em>critical pair</em> (<Op>2.B</Op>).
 					</li>
 				</ul>
 				<p>
-					The measure Φ = <em>q</em> − <em>y</em> (the number of distinct modules on or inside at least one maximal cycle minus
+					The measure <Math tex="\Phi = q - y" /> (the number of distinct modules on or inside at least one maximal cycle minus
 					the number of maximal cycles) strictly increases in every step 2.B, and every step 1.B adds
-					an edge, so each iteration ends after fewer than 2<em>n</em> steps of type 1.B or 2.B.
-					Dumitrescu and Pach bound one shape-to-chain conversion by fewer than 2<em>n</em>³ moves.
+					an edge, so each iteration ends after fewer than <Math tex="2n" /> steps of type 1.B or 2.B.
+					Dumitrescu and Pach bound one shape-to-chain conversion by fewer than <Math tex="2n^3" /> moves.
 					Our solver performs two such conversions and translates one chain to the other&apos;s position.
 					The translation cost depends on the distance between the chains.
 				</p>
@@ -301,7 +203,7 @@ export default function Report() {
 					We compute maximal cycles from the biconnected blocks of the adjacency graph: the outer
 					cycle of a block encloses a region, and a cycle is maximal when no other block&apos;s
 					region contains it. In step 2.B we try the cells next to critical pairs and keep the first
-					move that strictly increases Φ, which the paper&apos;s Claim guarantees to exist. The
+					move that strictly increases <Math tex="\Phi" />, which the paper&apos;s Claim guarantees to exist. The
 					paper says moving a chain to another position is easy but does not give the moves, so we
 					designed them: the chain shifts one row at a time (squares move into the next row from the
 					far end) and one column at a time (the end square is carried over the top).
@@ -317,14 +219,23 @@ export default function Report() {
 				<p>
 					The algorithm of <Cite n={1} /> repeatedly applies a local <em>operation</em> that lowers the potential
 				</p>
-				<p className="text-center font-mono">
-					Π = Σ w<sub>c</sub> · (x + 2y + 4z)
-				</p>
+				<Math display tex="\Pi(C) = \sum_{c\in C} w_c\,(x_c + 2y_c + 4z_c)" />
 				<p>
-					where the weight w<sub>c</sub> is 17 for cubes above z = 1, 16 at z = 1, and on the floor
-					3, 2 or 1 depending on whether y is above 1, equal to 1 or 0. In the paper&apos;s construction, the move count of each operation is bounded by a constant
-					times its potential decrease. This gives an O(S) bound on elementary moves, where S is the sum
-					of all cube coordinates measured from the minimum corner of the original box. The paper gives
+					The weight depends on the cube’s height and, for floor cubes, on its row.
+				</p>
+				<Math display tex={String.raw`w_c =
+					\begin{cases}
+					17 & z_c > 1 \\
+					16 & z_c = 1 \\
+					3 & z_c = 0,\ y_c > 1 \\
+					2 & z_c = 0,\ y_c = 1 \\
+					1 & z_c = 0,\ y_c = 0
+					\end{cases}`} />
+				<p>
+					In the paper&apos;s construction, the move count of each operation is bounded by a constant
+					times its potential decrease. This gives an <Math tex="O(S)" /> bound on elementary moves,
+					where <Math tex="S = \sum_{c\in C}(x_c + y_c + z_c)" /> uses coordinates measured from the
+					minimum corner of the original box. The paper gives
 					a matching worst-case lower bound. The same upper bound has yet to be established for our
 					implementation, which uses the alternative move sequences described in Section 7.
 				</p>
@@ -332,7 +243,7 @@ export default function Report() {
 				<p>
 					The paper proves that when no operation applies, the configuration is finished (Theorem
 					1). Our solver tries operations in order, checks the legality of every accepted move sequence,
-					and requires each accepted operation to decrease Π. It stops when it has compacted the shape
+					and requires each accepted operation to decrease <Math tex="\Pi" />. It stops when it has compacted the shape
 					or reports an error if its search finds no applicable operation.
 				</p>
 			</Section>
@@ -460,7 +371,7 @@ export default function Report() {
 						In <Op>[h]</Op>, the paper permits gathering to stop when L is exhausted. Our
 						solver can try other arrangements within the gathering square if the base still
 						cannot move, and recomputes the destination when a helper occupies it. These
-						searches are checked for legality and a decrease in Π on the accepted sequence.
+						searches are checked for legality and a decrease in <Math tex="\Pi" /> on the accepted sequence.
 						Those checks establish neither that a sequence will always be found nor that
 						its length is proportional to the decrease.
 					</li>

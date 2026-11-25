@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { type ReactNode, useMemo, useState } from "react";
-import { type Box, type Cell, Configuration, type Move, rules2D } from "@/engine";
+import { type Box, type Cell, Configuration, type Move, checkMove, rules2D, rules3D } from "@/engine";
 import { MoveRecorder } from "@/solvers/common";
 import { relocateChain } from "@/solvers/dumitrescuPach";
 import { firstCompactionOperation } from "@/solvers/peters";
@@ -118,26 +118,33 @@ export function OperationAnimation({ name, label }: { name: OperationDemoName; l
 			return error instanceof Error ? error : new Error(String(error));
 		}
 	}, [name]);
+	if (data instanceof Error) return <p className="mt-2 text-sm text-rose-600">{data.message}</p>;
+	const groups: ColorGroup[] = [
+		...(data.pin ? [{ cells: [data.pin], color: RED }] : []),
+		{ cells: data.highlight, color: AMBER },
+	];
+	return <MovePlayer {...data} groups={groups} label={label}
+		caption={`${data.name} · Amber marks the relevant cubes at the start. Purple marks the moving cube. Drag to rotate.`} />;
+}
+
+function MovePlayer({ start, moves, box, groups, label, caption, flat = false }: {
+	start: Cell[]; moves: Move[]; box?: Box; groups: ColorGroup[]; label?: string; caption?: string; flat?: boolean;
+}) {
 	const [playing, setPlaying] = useState(false);
 	const [step, setStep] = useState(0);
 	const [seek, setSeek] = useState<{ step: number }>();
 
-	if (data instanceof Error) return <p className="mt-2 text-sm text-rose-600">{data.message}</p>;
-	const last = data.moves.length;
+	const last = moves.length;
 	const jump = (next: number) => {
 		setPlaying(false);
 		setStep(next);
 		setSeek({ step: next });
 	};
 	const button = "rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800";
-	const groups: ColorGroup[] = [
-		...(data.pin ? [{ cells: [data.pin], color: RED }] : []),
-		{ cells: data.highlight, color: AMBER },
-	];
 	return (
 		<div className="mt-2 flex flex-col gap-2">
 			{label && <h5 className="text-sm font-medium">{label}</h5>}
-			<MoveScene start={data.start} moves={data.moves} box={data.box} groups={groups}
+			<MoveScene start={start} moves={moves} box={box} groups={groups} flat={flat}
 				playing={playing} restart={0} seek={seek} stopAtEnd stepMs={last > 20 ? 280 : 850}
 				onStep={(next) => {
 					setStep(next);
@@ -155,7 +162,40 @@ export function OperationAnimation({ name, label }: { name: OperationDemoName; l
 			</div>
 			<input aria-label="Position in operation" type="range" min={0} max={last} value={step}
 				onChange={(event) => jump(Number(event.currentTarget.value))} />
-			<p className="text-xs text-zinc-500">{data.name} · Amber marks the relevant cubes at the start. Purple marks the moving cube. Drag to rotate.</p>
+			{caption && <p className="text-xs text-zinc-500">{caption}</p>}
 		</div>
+	);
+}
+
+const primitives = [
+	{ label: "Slide", support: [[0, 0, 0], [1, 0, 0]], move: { from: [0, 1, 0], to: [1, 1, 0] } },
+	{ label: "Convex transition", support: [[0, 0, 0]], move: { from: [0, 1, 0], to: [1, 0, 0] } },
+] satisfies { label: string; support: Cell[]; move: Move }[];
+
+export function TransitionAnimations() {
+	return (
+		<figure className="my-2 flex flex-col gap-3">
+			{([true, false] as const).map((flat) => (
+				<section key={String(flat)} aria-label={flat ? "2D move animations" : "3D move animations"}>
+					<h3 className="font-semibold">{flat ? "2D square moves" : "3D cube moves"}</h3>
+					<div className="grid gap-4 sm:grid-cols-2">
+						{primitives.map(({ label, support, move }) => {
+							const project = ([x, y, z]: Cell): Cell => flat ? [x, y, z] : [x, z, y];
+							const start = [...support.map(project), project(move.from)];
+							const mapped = { from: project(move.from), to: project(move.to) };
+							const box: Box = { min: [0, 0, 0], max: [1, 0, 1] };
+							const legality = checkMove(new Configuration(start), mapped, flat ? rules2D : rules3D(box));
+							if (!legality.legal) throw new Error(legality.message);
+							return <MovePlayer key={label} start={start} moves={[mapped]} groups={[{ cells: [mapped.from], color: AMBER }]}
+								label={label} flat={flat} {...(flat ? {} : { box })} />;
+						})}
+					</div>
+				</section>
+			))}
+			<figcaption className="text-sm text-zinc-500">
+				Figure 1. A slide follows two blue supports. A convex transition uses one blue pivot and
+				passes through the empty corner. The moving module is purple during playback.
+			</figcaption>
+		</figure>
 	);
 }

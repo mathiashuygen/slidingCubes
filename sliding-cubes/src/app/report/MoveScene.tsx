@@ -26,6 +26,8 @@ export interface MoveSceneProps {
 	/** Keep the final position visible until the viewer restarts or seeks. */
 	stopAtEnd?: boolean;
 	seek?: { step: number };
+	/** Top-down orthographic projection for square configurations. */
+	flat?: boolean;
 }
 
 const CUBE = "#0ea5e9";
@@ -126,7 +128,7 @@ function Cubes({ start, moves, groups = [], stepMs, playing, onStep, stopAtEnd, 
 }
 
 export default function MoveScene(props: MoveSceneProps) {
-	const { start, moves, box, restart, seek, stepMs } = props;
+	const { start, moves, box, restart, seek, stepMs, flat = false } = props;
 	const clockRef = useRef(0);
 	useEffect(() => {
 		clockRef.current = (seek?.step ?? 0) * stepMs;
@@ -158,11 +160,14 @@ export default function MoveScene(props: MoveSceneProps) {
 		<div ref={holder} className="h-64 w-full overflow-hidden rounded-md bg-zinc-50 dark:bg-zinc-900">
 			{visible && (
 				<Canvas
-					camera={{ up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
+					orthographic={flat}
+					camera={flat
+						? { up: [0, 1, 0], position: [middle.x, middle.y, middle.z + distance], zoom: 75 / Math.max(1, size / 2) }
+						: { up: [0, 0, 1], fov: 40, position: [middle.x + distance * 0.8, middle.y - distance * 1.3, middle.z + distance * 0.8] }}
 				>
 					<ambientLight intensity={0.75} />
 					<directionalLight position={[middle.x + 6, middle.y - 9, middle.z + 12]} intensity={1.5} />
-					<OrbitControls makeDefault target={middle} enableZoom={false} />
+					<OrbitControls makeDefault target={middle} enableZoom={false} enableRotate={!flat} enablePan={!flat} />
 					<gridHelper
 						args={[Math.ceil(size) + 6, Math.ceil(size) + 6, "#a1a1aa", "#d4d4d8"]}
 						rotation={[Math.PI / 2, 0, 0]}
