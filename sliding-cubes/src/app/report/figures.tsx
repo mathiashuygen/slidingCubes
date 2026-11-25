@@ -339,14 +339,14 @@ export function ThinBridgeFigure() {
 	);
 }
 
-/** Figure 5: our chain relocation in 2D (not in the paper). */
+/** Figure 2: our chain relocation in 2D (not in the paper). */
 export function ChainRelocationFigure() {
 	const view = { x0: 0, x1: 5, y0: 0, y1: 1 };
 	return (
 		<Figure
 			caption={
 				<>
-					Figure 5. Moving one chain onto another (2D, our addition). Left: a row shift moves the squares
+					Figure 2. Moving one chain onto another (2D, our addition). Left: a row shift moves the squares
 					one by one into the next row, starting with the west end going to the far east cell. Right: a
 					column shift carries the west end over the top to the east end. Each square follows a shortest
 					legal path; the arrows show the route.

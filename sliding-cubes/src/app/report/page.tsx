@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CaseAnimation } from "./animations";
 import { OperationComparison } from "./OperationComparison";
-import { ChainRelocationFigure, GatherFigure, PinnedStripFigure, ThinBridgeFigure } from "./figures";
+import { ChainRelocationFigure } from "./figures";
 
 export const metadata: Metadata = {
 	title: "Report · Sliding Cubes",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const GITHUB = "https://github.com/mathiashuygen/slidingCubes";
 
-const REVIEWED_REVISION = `${GITHUB}/commit/3ca9cd19d198f7badf06d8a24567c9a0449bba4d`;
+const TEST_REVISION = `${GITHUB}/commit/c4e784b8d5f6fb949d64fb0316f19f7aa7471960`;
 
 const sections = [
 	["introduction", "1. Introduction"],
@@ -380,121 +380,61 @@ export default function Report() {
 
 			<Section id="verification" title="6. Verification and results">
 				<p>
-					Because every solver move is checked by the rules engine, a bug in a solver shows up as a
-					failed replay or as a state where no operation applies, never as a silently illegal
-					solution. The test suite (164 tests) replays the curated levels, seeded random shapes and
-					hand-built cases for the more involved operations ([e], [h], [i] and [j]), and checks that every level&apos;s stored move count
-					still matches the solver.
+					All 164 checked-in tests pass. Solver tests replay the moves through the rules engine
+					and check the exact 2D target or the 3D compaction goal. The table lists representative
+					cases from the suite.
 				</p>
-				<p>
-					We also ran larger stress tests. One family of shapes, floor rows hanging from a bridge,
-					made the 3D solver stop with no applicable operation. We traced this to two bugs in our
-					implementation, not in the paper:
-				</p>
-				<ul className="list-disc pl-6">
-					<li>
-						The proof of Lemma 11 uses <Op>[j]</Op> with the pillar through the pinned cube as
-						clearing pillar; our solver skipped that pillar (Figure 2).
-					</li>
-					<li>
-						In <Op>[h]</Op>, the gathered cubes could fill the empty cell e chosen beforehand; the
-						solver now chooses e again by the paper&apos;s rule (Figure 3).
-					</li>
-				</ul>
-				<PinnedStripFigure />
-				<CaseAnimation
-					name="pinned"
-					caption="Animation of Figure 2: the fixed solver applies [j] from the stuck state. The moving cube (purple) is the rightmost cube of the strip: it passes just outside the box at y = −1 and joins the left end of the row. The pinned cube (red) never moves."
-				/>
-				<GatherFigure />
-				<CaseAnimation
-					name="gather"
-					caption="Animation of Figure 3: the whole [h] operation. Cubes of L (amber) are gathered around c (red), c moves to the new e, and the head of the clearing pillar drops into c&apos;s old cell. The moving cube is purple. The paper moves cubes via z = −1; our solver uses a shortest legal path, which here takes c just outside the box at y = 3."
-				/>
-				<p>
-					A third failure was in boxes that are only one cube thick. A bridge of two 9-cube legs,
-					3 or 4 cubes wide, made the solver stop after its first pillar shove. The second leg
-					needs a long pillar shove <Op>[e]</Op>, and the paper&apos;s zipper for that needs a
-					free column on a third side of the pillar. In this case, the possible helper column is outside the box, where the in-place rule allows
-					only one cube, or is occupied by the other leg. When our solver cannot place the paper&apos;s Figure 3 zipper within the in-place rules, it tries the short shove. The accepted sequence is legal
-					and lowers Π, and can take quadratically many moves in the pillar&apos;s height (Figure 4 and Section 7).
-				</p>
-				<ThinBridgeFigure />
-				<CaseAnimation
-					name="thin"
-					caption="Animation of Figure 4: the short shove that replaces the zipper. The 9-cube leg (amber) is rebuilt one column to the left, one cube at a time (the moving cube is purple), inside the one-cube-thick box."
-				/>
-				<p>
-					Finally, the solvers&apos; tie-breaking depended on the order in which the cells happened
-					to be stored. After stepping through a solution and back, a hint could report 124 moves
-					for a position the solver had just solved in 123. Both solvers now sort the cells first,
-					so the same position always gets the same solution.
-				</p>
-				<p>After all fixes:</p>
 				<div className="overflow-x-auto">
 					<table className="w-full text-left text-sm">
 						<thead className="border-b border-zinc-300 dark:border-zinc-700">
 							<tr>
-								<th className="py-1 pr-4">Solver</th>
-								<th className="py-1 pr-4">Inputs</th>
-								<th className="py-1">Result</th>
+								<th scope="col" className="py-2 pr-4">Test cases</th>
+								<th scope="col" className="py-2">Checks</th>
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
 							<tr>
-								<td className="py-1 pr-4">3D</td>
-								<td className="py-1 pr-4">
-									984 shapes up to 30 cubes, incl. flat and one-cube-thick ones
-								</td>
-								<td className="py-1">984/984 compacted. Maximum observed in this batch: 0.83·S moves.</td>
+								<td className="py-2 pr-4">Rules engine</td>
+								<td className="py-2">Legal slides and turns preserve connectivity and can be reversed. Blocked corners, moves that disconnect the fixed cubes, and a second cube outside the box are rejected.</td>
 							</tr>
 							<tr>
-								<td className="py-1 pr-4">3D</td>
-								<td className="py-1 pr-4">765 bridges, floor rows and random shapes</td>
-								<td className="py-1">all compacted</td>
+								<td className="py-2 pr-4">28 curated levels</td>
+								<td className="py-2">All 11 square levels and 17 cube levels reach their goals. The solver’s move count matches the stored par, and breadth-first search checks the shortest counts where recorded.</td>
 							</tr>
 							<tr>
-								<td className="py-1 pr-4">3D</td>
-								<td className="py-1 pr-4">
-									930 one-cube-thick bridges (some on floor pieces) and random shapes
-								</td>
-								<td className="py-1">all compacted</td>
+								<td className="py-2 pr-4">Seeded solver inputs</td>
+								<td className="py-2">48 pairs of 2D shapes reach their exact translated targets. 34 3D shapes compact inside their original boxes.</td>
 							</tr>
 							<tr>
-								<td className="py-1 pr-4">Both</td>
-								<td className="py-1 pr-4">200 generated levels and 400 hints from random mid-game positions</td>
-								<td className="py-1">all solved; every hint verified</td>
+								<td className="py-2 pr-4">Pillars, floor components, and thin boxes</td>
+								<td className="py-2">A tall bridge uses the zipper in <Op>[e]</Op>. The <Op>[h]</Op> cases cover gathering and a covered destination. The <Op>[i]</Op> cases check that the floor is restored. The <Op>[j]</Op> cases cover strips that must keep a cube pinned. Three thin bridges compact using a short shove when the zipper has no room.</td>
 							</tr>
 							<tr>
-								<td className="py-1 pr-4">2D</td>
-								<td className="py-1 pr-4">650 random start and target pairs up to 30 squares</td>
-								<td className="py-1">all solved</td>
+								<td className="py-2 pr-4">14 operation demonstrations</td>
+								<td className="py-2">The examples select the intended operation, replay legally, and lower the potential. The cases cover <Op>[a]–[j]</Op>, the three unlock variants, and both forms of <Op>[i]</Op>.</td>
+							</tr>
+							<tr>
+								<td className="py-2 pr-4">Hints and cell order</td>
+								<td className="py-2">The suite checks hints from mid-game states, including a cube outside the original box, and compares solutions and hint lengths when the same cells are supplied in a different order.</td>
 							</tr>
 						</tbody>
 					</table>
 				</div>
 				<p>
-					The table summarizes development stress tests. The exact scripts, seeds, and tested revisions
-					for those batches are unavailable in the repository. To reproduce the checked-in tests, use{" "}
-					<code>npm ci</code> and <code>npm test</code> from <code>sliding-cubes/</code> at the{" "}
-					<a href={REVIEWED_REVISION} className="text-sky-700 hover:underline dark:text-sky-400">
-						verified solver revision
-					</a>.
-					Separately, the 20-cube bridge with width four and columns nine cubes high compacted in
-					123 legal moves with S = 118 (approximately 1.04·S).
+					The curated tests give solver and shortest move counts of 11 and 10 for Tower, 71 and 8
+					for Snake, and 92 and 14 for Staircase.
 				</p>
 				<p>
-					On &ldquo;Tower&rdquo; the 3D solver uses 11 moves
-					where the shortest solution takes 10. The 2D algorithm was designed to prove that a
-					solution exists, not to find a short one, and it shows: &ldquo;Snake&rdquo; takes 71 moves
-					against a shortest 8, and &ldquo;Staircase&rdquo; 92 against 14.
+					To reproduce the checks, run <code>npm ci</code> and <code>npm test</code> from
+					<code> sliding-cubes/</code> at the{" "}
+					<a href={TEST_REVISION} className="text-sky-700 hover:underline dark:text-sky-400">tested revision</a>.
 				</p>
 			</Section>
 
 			<Section id="deviations" title="7. Deviations from the papers">
 				<p>Our implementation goes beyond the papers in these places:</p>
 				<ul className="list-disc pl-6">
-					<li>Moving one chain onto another in 2D (the paper leaves it open; see Section 3 and Figure 5).</li>
+					<li>Moving one chain onto another in 2D (the paper leaves it open; see Section 3 and Figure 2).</li>
 					<li>
 						For 3D hints from the middle of a game, a cube left outside the box is first brought
 						back in (the solver labels this step &ldquo;not in the paper&rdquo;). The paper only starts from configurations inside the box, and does not
@@ -504,7 +444,7 @@ export default function Report() {
 					<li>
 						<strong>Long shoves in thin boxes.</strong> The implementation restricts a vertical
 						one-cube-thick box to its occupied plane. The long <Op>[e]</Op> zipper needs a third
-						column for simultaneous helpers. In the thin bridge in Figure 4, that column is
+						column for simultaneous helpers. In the thin-bridge test cases, that column is
 						occupied or outside the box, where only one cube may be at a time. The solver tries
 						the short shove to reach the same final occupancy with legal moves. On a long
 						pillar, that construction can take quadratically many moves in its height, so the
@@ -528,7 +468,7 @@ export default function Report() {
 				<ChainRelocationFigure />
 				<CaseAnimation
 					name="chain"
-					caption="Animation of Figure 5: a chain of four squares moves one row up (each square in turn, starting with the west end), then one column right (the west end is carried over the top)."
+					caption="Animation of Figure 2: a chain of four squares moves one row up (each square in turn, starting with the west end), then one column right (the west end is carried over the top)."
 				/>
 			</Section>
 
