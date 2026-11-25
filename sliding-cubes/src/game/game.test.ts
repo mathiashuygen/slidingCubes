@@ -25,6 +25,25 @@ describe("curated levels", () => {
 		}, 30_000); // The shortest-solution search alone takes about 5 s on "Tower".
 	}
 
+	it("opens each paper example with the moves shown in Figure 2", () => {
+		const examples = [
+			["a", [[[1, 0, 3], [0, 0, 2]]]],
+			["b", [[[0, 0, 1], [1, 0, 1]], [[0, 0, 2], [0, 0, 1]]]],
+			["b-unlock", [[[0, 0, 3], [1, 0, 3]], [[0, 0, 1], [1, 0, 1]], [[0, 0, 2], [0, 0, 1]]]],
+			["c", [[[0, 0, 2], [0, 0, 1]]]],
+			["c-unlock", [[[0, 0, 3], [1, 0, 3]], [[0, 0, 2], [0, 0, 1]]]],
+			["d", [[[0, 0, 1], [1, 0, 0]]]],
+			["d-unlock", [[[0, 0, 2], [1, 0, 2]], [[0, 0, 1], [1, 0, 0]]]],
+		] as const;
+
+		for (const [id, arrows] of examples) {
+			const level = levels3D.find((candidate) => candidate.id === `paper-${id}`)!;
+			const { moves, phases } = solveLevel(level);
+			expect(phases[0]?.name).toBe(`[${id[0]}] local z-reduction`);
+			expect(moves.slice(0, arrows.length)).toEqual(arrows.map(([from, to]) => ({ from, to })));
+		}
+	});
+
 	it("gets harder: module counts never decrease along each list", () => {
 		for (const list of [levels2D, levels3D]) {
 			const sizes = list.map((l) => l.start.length);

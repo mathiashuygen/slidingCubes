@@ -200,7 +200,7 @@ export default function Report() {
 				<p>
 					We studied this question in the sliding square model (2D) and the sliding cube model (3D),
 					and built a browser application around it. Players move squares and cubes themselves, and
-					both solvers reach the required goal on all 21 curated levels. They are based on these two algorithms:
+					both solvers reach the required goal on all 28 curated levels. They are based on these two algorithms:
 				</p>
 				<ul className="list-disc pl-6">
 					<li>
@@ -380,7 +380,7 @@ export default function Report() {
 						breadth-first search for shortest solutions of small levels.
 					</li>
 					<li>
-						<strong>Game</strong>: a tutorial of nine lessons, 11 curated 2D levels and 10 curated 3D
+						<strong>Game</strong>: a tutorial of nine lessons, 11 curated 2D levels and 17 curated 3D
 						levels, a seeded random level generator, undo and redo, and a score against the solver.
 					</li>
 					<li>
@@ -409,7 +409,7 @@ export default function Report() {
 				<p>
 					Because every solver move is checked by the rules engine, a bug in a solver shows up as a
 					failed replay or as a state where no operation applies, never as a silently illegal
-					solution. The test suite (135 tests) replays the curated levels, seeded random shapes and
+					solution. The test suite (150 tests) replays the curated levels, seeded random shapes and
 					hand-built cases for the more involved operations ([e], [h], [i] and [j]), and checks that every level&apos;s stored move count
 					still matches the solver.
 				</p>
