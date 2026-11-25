@@ -25,6 +25,7 @@ const sections = [
 	["verification", "6. Verification and results"],
 	["deviations", "7. Deviations from the papers"],
 	["conclusion", "8. Conclusion and future work"],
+	["contributions", "9. Contributions"],
 	["references", "References"],
 ] as const;
 
@@ -394,6 +395,22 @@ export default function Report() {
 					state, establishing a move bound for our 3D implementation, faster planning for very large
 					configurations, and comparing the 2D solver with an algorithm designed to use fewer moves.
 				</p>
+			</Section>
+
+			<Section id="contributions" title="9. Contributions">
+				<ul className="list-disc pl-6">
+					<li>
+						<strong>Iliass Jdaoudi:</strong> the design and the game itself, including all the rules and
+						the rules engine.
+					</li>
+					<li>
+						<strong>Mathias Louis Huygen:</strong> searching for the papers, the idea of the game, and
+						examining the deviations from the papers.
+					</li>
+					<li>
+						<strong>Both:</strong> verifying the algorithm.
+					</li>
+				</ul>
 			</Section>
 
 			<Section id="references" title="References">
