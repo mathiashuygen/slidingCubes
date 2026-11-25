@@ -103,7 +103,7 @@ export default function Report() {
 				<p>
 					We studied this question in the sliding square model (2D) and the sliding cube model (3D),
 					and built a browser application around it. Players move squares and cubes themselves, and
-					both solvers reach the required goal on all 28 curated levels. They are based on these two algorithms:
+					both solvers reach the required goal on all 29 curated levels. They are based on these two algorithms:
 				</p>
 				<ul className="list-disc pl-6">
 					<li>
@@ -291,7 +291,7 @@ export default function Report() {
 
 			<Section id="verification" title="6. Verification and results">
 				<p>
-					All 164 checked-in tests pass. Solver tests replay the moves through the rules engine
+					All 166 checked-in tests pass. Solver tests replay the moves through the rules engine
 					and check the exact 2D target or the 3D compaction goal. The table lists representative
 					cases from the suite.
 				</p>
@@ -309,7 +309,7 @@ export default function Report() {
 								<td className="py-2">Legal slides and turns preserve connectivity and can be reversed. Blocked corners, moves that disconnect the fixed cubes, and a second cube outside the box are rejected.</td>
 							</tr>
 							<tr>
-								<td className="py-2 pr-4">28 curated levels</td>
+								<td className="py-2 pr-4">29 curated levels</td>
 								<td className="py-2">All 11 square levels and 17 cube levels reach their goals. The solver’s move count matches the stored par, and breadth-first search checks the shortest counts where recorded.</td>
 							</tr>
 							<tr>
